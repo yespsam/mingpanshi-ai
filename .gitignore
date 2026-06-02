@@ -1,0 +1,9 @@
+.env
+.data/
+node_modules/
+screenshots/
+.netlify/
+.playwright-cli/
+output/
+*.log
+.DS_Store

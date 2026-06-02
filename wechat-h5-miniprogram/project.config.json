@@ -1,0 +1,20 @@
+{
+  "description": "命盘师 H5 小程序壳",
+  "packOptions": {
+    "ignore": []
+  },
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "coverView": true,
+    "showShadowRootInWXMLPanel": true
+  },
+  "compileType": "miniprogram",
+  "libVersion": "latest",
+  "appid": "touristappid",
+  "projectname": "mingpanshi-h5-miniprogram",
+  "condition": {}
+}

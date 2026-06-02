@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="32" fill="#050605"/>
+  <circle cx="32" cy="32" r="25" fill="none" stroke="#d7a85b" stroke-width="2"/>
+  <circle cx="32" cy="32" r="14" fill="none" stroke="#8f6837" stroke-width="1.5"/>
+  <text x="32" y="39" text-anchor="middle" font-size="24" fill="#d7a85b" font-family="serif">玄</text>
+</svg>

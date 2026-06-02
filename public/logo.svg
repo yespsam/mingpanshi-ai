@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="命盘师代码标识">
+  <rect width="120" height="120" rx="18" fill="#000000"/>
+  <rect x="10" y="10" width="100" height="100" rx="10" fill="none" stroke="#00ff70" stroke-width="3"/>
+  <text x="60" y="49" fill="#00ff70" font-family="Menlo, Consolas, monospace" font-size="24" font-weight="800" text-anchor="middle">&lt;命/&gt;</text>
+  <text x="60" y="78" fill="#8cffb7" font-family="Menlo, Consolas, monospace" font-size="13" font-weight="700" text-anchor="middle">MPS.RUN</text>
+  <path d="M22 91h76" stroke="#00ff70" stroke-width="3" stroke-linecap="square"/>
+</svg>

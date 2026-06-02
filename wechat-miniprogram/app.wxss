@@ -1,0 +1,23 @@
+page {
+  min-height: 100%;
+  color: #1a1438;
+  background: #f7f6f3;
+  font-family: "PingFang SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
+}
+
+view,
+text,
+input,
+textarea,
+picker,
+button {
+  box-sizing: border-box;
+}
+
+button {
+  margin: 0;
+}
+
+button::after {
+  border: 0;
+}

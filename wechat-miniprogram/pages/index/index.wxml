@@ -1,0 +1,138 @@
+<view class="page">
+  <view class="header">
+    <view class="brand-mark">命</view>
+    <view>
+      <view class="brand-title">命盘师</view>
+      <view class="brand-subtitle">AI 命盘解析</view>
+    </view>
+  </view>
+
+  <view class="status {{apiReady ? 'ready' : 'warn'}}">
+    {{statusText}}
+  </view>
+
+  <view class="luopan-card">
+    <view class="luopan">
+      <view class="ring outer"></view>
+      <view class="ring middle"></view>
+      <view class="ring inner"></view>
+      <view class="core">{{coreGlyph}}</view>
+      <view class="tri tri-1">☰</view>
+      <view class="tri tri-2">☱</view>
+      <view class="tri tri-3">☲</view>
+      <view class="tri tri-4">☳</view>
+      <view class="tri tri-5">☴</view>
+      <view class="tri tri-6">☵</view>
+      <view class="tri tri-7">☶</view>
+      <view class="tri tri-8">☷</view>
+    </view>
+    <view class="hero-copy">
+      <view class="eyebrow">命盘总览</view>
+      <view class="hero-title">{{reportTitle}}</view>
+      <view class="hero-text">{{summary}}</view>
+    </view>
+  </view>
+
+  <view class="panel">
+    <view class="panel-title">信息输入</view>
+
+    <view class="field">
+      <view class="label">姓名 / 称呼</view>
+      <input class="control" value="{{form.name}}" data-key="name" placeholder="例如：有缘人" bindinput="onInput" />
+    </view>
+
+    <view class="field">
+      <view class="label">出生日期</view>
+      <picker mode="date" value="{{form.birthDate}}" bindchange="onBirthDateChange">
+        <view class="control picker-value">{{form.birthDate || '选择日期'}}</view>
+      </picker>
+    </view>
+
+    <view class="field">
+      <view class="label">出生时间</view>
+      <picker mode="time" value="{{form.birthTime}}" bindchange="onBirthTimeChange">
+        <view class="control picker-value">{{form.birthTime || '未知'}}</view>
+      </picker>
+    </view>
+
+    <view class="field">
+      <view class="label">性别 / 身份</view>
+      <picker value="{{genderIndex}}" range="{{genderOptions}}" bindchange="onGenderChange">
+        <view class="control picker-value">{{genderOptions[genderIndex]}}</view>
+      </picker>
+    </view>
+
+    <view class="field">
+      <view class="label">关注重点</view>
+      <picker value="{{focusIndex}}" range="{{focusLabels}}" bindchange="onFocusChange">
+        <view class="control picker-value">{{focusLabels[focusIndex]}}</view>
+      </picker>
+    </view>
+
+    <view class="field">
+      <view class="label">想问的问题</view>
+      <textarea class="control textarea" value="{{form.question}}" data-key="question" maxlength="300" placeholder="例如：未来事业发展如何？什么时候有突破机会？" bindinput="onInput"></textarea>
+    </view>
+
+    <button class="primary" loading="{{loading}}" disabled="{{loading}}" bindtap="submitReading">开始解析</button>
+    <view class="fine-print">报告由模型 API 生成，仅供娱乐与自我反思，不作为任何决策依据。</view>
+  </view>
+
+  <view class="result" wx:if="{{hasReport}}">
+    <view class="panel">
+      <view class="panel-title">命盘资料</view>
+      <view class="pillar" wx:for="{{pillars}}" wx:key="label">
+        <text>{{item.label}}</text>
+        <text>{{item.value}}</text>
+      </view>
+    </view>
+
+    <view class="panel">
+      <view class="panel-title">五行权重</view>
+      <view class="element" wx:for="{{elements}}" wx:key="element">
+        <view class="element-row">
+          <text>{{item.element}}</text>
+          <text>{{item.percent}}%</text>
+        </view>
+        <view class="bar"><view class="bar-fill element-{{item.element}}" style="width: {{item.percent}}%;"></view></view>
+      </view>
+    </view>
+
+    <view class="panel">
+      <view class="panel-title">领域评分</view>
+      <view class="domain" wx:for="{{domains}}" wx:key="key">
+        <view class="domain-top">
+          <text>{{item.label}}</text>
+          <text>{{item.score}}</text>
+        </view>
+        <view class="domain-text">{{item.reading}}</view>
+      </view>
+    </view>
+
+    <view class="panel">
+      <view class="panel-title">AI 报告</view>
+      <view class="report-section" wx:for="{{sections}}" wx:key="title">
+        <view class="section-title">{{item.title}}</view>
+        <view class="section-body">{{item.body}}</view>
+      </view>
+      <view class="report-section" wx:if="{{advice.length}}">
+        <view class="section-title">行动建议</view>
+        <view class="section-body" wx:for="{{advice}}" wx:key="*this">{{index + 1}}. {{item}}</view>
+      </view>
+    </view>
+
+    <view class="panel">
+      <view class="panel-title">流年提示</view>
+      <view class="annual" wx:for="{{annualFlow}}" wx:key="year">
+        <view class="domain-top">
+          <text>{{item.year}} · {{item.theme}}</text>
+          <text>{{item.score || ''}}</text>
+        </view>
+        <view class="domain-text">{{item.reading}}</view>
+      </view>
+      <view class="lucky">{{luckyText}}</view>
+    </view>
+
+    <button class="ghost" bindtap="copyReport">复制报告</button>
+  </view>
+</view>

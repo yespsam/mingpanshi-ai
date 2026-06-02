@@ -1,0 +1,16 @@
+{
+  "pages": [
+    "pages/index/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "命盘师",
+    "navigationBarBackgroundColor": "#F7F6F3",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F7F6F3",
+    "backgroundTextStyle": "dark"
+  },
+  "networkTimeout": {
+    "request": 90000
+  },
+  "sitemapLocation": "sitemap.json"
+}
