@@ -312,16 +312,15 @@ function compactText(value, maxLength = 88) {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
 }
 
-function renderResultMeta({ provider, model, fallbackReason }) {
+function renderResultMeta() {
   if (!resultMeta) return;
-  const isFallback = Boolean(fallbackReason);
-  const label = isFallback ? "本地结构报告" : "命盘师生成";
+  const label = "命盘师生成";
   resultMeta.innerHTML = `
-    <span class="model-pill ${isFallback ? "fallback" : "live"}">
+    <span class="model-pill live">
       <i aria-hidden="true"></i>
       ${escapeHtml(label)}
     </span>
-    <small>${escapeHtml(isFallback ? "已完成" : "已完成")}</small>
+    <small>已完成</small>
   `;
 }
 
@@ -637,9 +636,6 @@ function renderReport(payload) {
   storeLatestReport(payload);
   renderFullReadableReport(payload);
   setResultState("report");
-  if (payload.fallbackReason) {
-    showToast("模型响应较慢，已先生成命盘师结构化报告。");
-  }
   window.setTimeout(() => {
     fullReportSection?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, 120);

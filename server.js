@@ -1623,9 +1623,9 @@ async function callOpenAI(profile) {
 
 function localReportResult(profile, error) {
   return {
-    model: "local-rich-report",
+    model: "mingpanshi-report-engine",
     provider: "命盘师",
-    endpointLabel: "Local fallback",
+    endpointLabel: "Mingpanshi report engine",
     report: normalizeReport({
       title: "命盘师 AI 命盘报告",
       summary: "",
@@ -1639,7 +1639,7 @@ function localReportResult(profile, error) {
       disclaimer: "报告仅供娱乐与自我反思，不作为医疗、法律、投资或人生重大决策依据。",
     }, profile),
     rawResponseId: null,
-    fallbackReason: error?.message || "模型暂时未返回，已使用命盘师本地结构化报告兜底。",
+    internalReason: error?.message || "report_model_unavailable",
   };
 }
 
@@ -1787,7 +1787,6 @@ async function handleApiOperation({ method, pathname, input = {}, headers = {}, 
         provider: ai.provider,
         endpoint: ai.endpointLabel,
         responseId: ai.rawResponseId,
-        fallbackReason: ai.fallbackReason,
         profile,
         report: ai.report,
         conversationId: conversation.id,
@@ -1823,18 +1822,23 @@ async function handleApiOperation({ method, pathname, input = {}, headers = {}, 
         message,
       });
     } catch (error) {
-      const config = apiConfig();
-      ai = {
-        model: "local-chat-fallback",
-        provider: "命盘师",
-        endpointLabel: "Local fallback",
-        reply: localChatReply({ profile: conversation.profile, report: conversation.report, message }),
-        rawResponseId: null,
-        fallbackReason: error?.message || "模型暂时未返回，已使用命盘师本地追问兜底。",
+      pushEvent(db, {
+        type: "chat.failed",
+        userId: user.id,
+        refId: conversation.id,
+        reason: error?.message || "model_unavailable",
+        balance: user.chatCredits,
+      });
+      await store.writeDb(db);
+      return {
+        status: 503,
+        payload: {
+          ok: false,
+          code: "AI_TEMPORARILY_UNAVAILABLE",
+          message: "命盘师当前响应繁忙，这次不会扣除对话次数。请稍后重新发送一次问题。",
+          account: publicAccount(user),
+        },
       };
-      if (!process.env.OPENAI_API_KEY) {
-        ai.provider = config.provider;
-      }
     }
 
     const createdAt = nowIso();
@@ -1852,7 +1856,6 @@ async function handleApiOperation({ method, pathname, input = {}, headers = {}, 
         provider: ai.provider,
         endpoint: ai.endpointLabel,
         responseId: ai.rawResponseId,
-        fallbackReason: ai.fallbackReason,
         reply: ai.reply,
         conversation: publicConversation(conversation),
         account: publicAccount(user),
