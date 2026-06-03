@@ -66,6 +66,49 @@
     `;
   }
 
+  function skillRows(profile = {}) {
+    const layers = profile.mysticSystems?.layers || {};
+    return [
+      ["八字", `${layers.bazi?.dayMaster || profile.pillars?.dayMaster || "--"}日主`, layers.bazi?.elementBalance?.plain || "四柱、十神、五行底盘"],
+      ["六爻", `${layers.liuyao?.yongshen || "用神"} · ${layers.liuyao?.line || profile.sixYao?.lineName || "--"}`, layers.liuyao?.plain || "用神、世应、动爻事件判断"],
+      ["梅花", `${layers.meihua?.body || "体卦"} / ${layers.meihua?.use || "用卦"}`, layers.meihua?.trend || layers.meihua?.plain || "体用生克与趋势验证"],
+      ["紫微", layers.ziwei?.focusPalaceHint || "宫位入口", (layers.ziwei?.fourTransformations || []).join(" · ") || layers.ziwei?.plain || "宫位与四化视角"],
+      ["奇门", `${layers.qimen?.palace || "九宫"} · ${layers.qimen?.door || "门"}`, [layers.qimen?.star, layers.qimen?.deity, layers.qimen?.plain].filter(Boolean).join(" · ")],
+      ["姻缘", `${layers.yinyuan?.spouseStar || "关系星"} · ${layers.yinyuan?.spousePalace || "配偶宫"}`, layers.yinyuan?.plain || "日支、配偶宫、关系边界"],
+      ["风水", `${layers.fengshui?.weakElement || "五行"}需补 · ${layers.fengshui?.directionHint || "空间方向"}`, layers.fengshui?.plain || "阳宅/办公环境习惯建议"],
+      ["塔罗", (layers.tarot?.cards || []).map((card) => `${card.name}${card.orientation || ""}`).join(" / ") || "心理镜像", layers.tarot?.plain || "牌面作为自我观察提示"],
+    ].filter((item) => item[1] && item[1] !== "--");
+  }
+
+  function skillOverviewHtml(profile = {}) {
+    const rows = skillRows(profile);
+    const checks = profile.mysticSystems?.crossChecks || [];
+    if (!rows.length) return "";
+    return `
+      <section class="reader-section featured reader-skill-overview" id="reader-skills">
+        <div class="reader-section-title">
+          <span>SK</span>
+          <h3>已挂载术数 Skill</h3>
+        </div>
+        <div class="reader-skill-grid">
+          ${rows.map(([name, title, detail]) => `
+            <article class="reader-skill">
+              <span>${escapeHtml(name)}</span>
+              <strong>${escapeHtml(title)}</strong>
+              <p>${escapeHtml(detail)}</p>
+            </article>
+          `).join("")}
+        </div>
+        ${checks.length ? `
+          <div class="reader-cross-checks">
+            <strong>交叉验证</strong>
+            ${listHtml(checks.slice(0, 5))}
+          </div>
+        ` : ""}
+      </section>
+    `;
+  }
+
   function domainHtml(profile = {}, report = {}) {
     const profileDomains = new Map((profile.domains || []).map((item) => [item.key, item]));
     const items = (report.domainReadings || profile.domains || []).map((item) => {
@@ -203,11 +246,13 @@
         <div class="reader-layout">
           <nav class="reader-toc" aria-label="完整报告目录">
             <strong>REPORT INDEX</strong>
+            <a href="#reader-skills">已挂载术数 Skill</a>
             ${sections.map((item) => `<a href="#${item.id}">${escapeHtml(item.title)}</a>`).join("")}
             <a href="#reader-domain">多维分析</a>
             <a href="#reader-annual">流年节奏</a>
           </nav>
           <div class="reader-main">
+            ${skillOverviewHtml(profile)}
             ${sections.map((item) => item.html).join("")}
             ${domainHtml(profile, report)}
             ${annualHtml(profile, report)}

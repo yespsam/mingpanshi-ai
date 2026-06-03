@@ -6580,6 +6580,102 @@ body,
   padding: 18px;
 }
 
+.mystic-skill-panel {
+  grid-column: 1 / -1;
+  padding: 14px;
+  border: 1px solid rgba(0, 255, 112, 0.24);
+  border-radius: 6px;
+  background:
+    linear-gradient(135deg, rgba(0, 255, 112, 0.08), rgba(0, 0, 0, 0.34)),
+    rgba(0, 8, 3, 0.9);
+  color: var(--matrix-text);
+}
+
+.skill-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.skill-panel-head span,
+.skill-chip span,
+.reader-skill span,
+.reader-cross-checks strong {
+  color: var(--matrix-green);
+  font-family: var(--font-code);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.skill-panel-head strong {
+  color: var(--matrix-text);
+  font-family: var(--font-code);
+  font-size: 14px;
+}
+
+.skill-chip-grid,
+.reader-skill-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.skill-chip,
+.reader-skill {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(0, 255, 112, 0.13);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.34);
+}
+
+.skill-chip strong,
+.reader-skill strong {
+  display: block;
+  margin: 7px 0 5px;
+  color: var(--matrix-text);
+  overflow-wrap: anywhere;
+  font-family: var(--font-code);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.skill-chip small,
+.reader-skill p {
+  display: block;
+  margin: 0;
+  color: rgba(218, 255, 230, 0.72);
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.reader-skill-grid {
+  padding: 18px;
+}
+
+.reader-skill {
+  padding: 14px;
+}
+
+.reader-skill p {
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.reader-cross-checks {
+  display: grid;
+  gap: 10px;
+  padding: 0 18px 18px;
+}
+
+.reader-cross-checks .reader-list {
+  margin: 0;
+}
+
 .readable-report-empty {
   min-height: 52vh;
   display: grid;
@@ -6608,7 +6704,9 @@ body,
   .reader-hero,
   .reader-layout,
   .reader-metrics,
-  .reader-domain-grid {
+  .reader-domain-grid,
+  .skill-chip-grid,
+  .reader-skill-grid {
     grid-template-columns: 1fr;
   }
 
@@ -6637,5 +6735,9 @@ body,
   .reader-list li {
     font-size: 15px;
     line-height: 1.9;
+  }
+
+  .skill-panel-head {
+    display: grid;
   }
 }

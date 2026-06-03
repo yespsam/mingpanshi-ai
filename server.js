@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { Solar } = require("lunar-javascript");
+const { buildMysticSystems } = require("./mystic-systems");
 
 const ROOT_DIR = __dirname;
 const PUBLIC_DIR = path.join(ROOT_DIR, "public");
@@ -183,6 +184,7 @@ const SYSTEM_PROMPT = [
   "不要提供医疗、法律、投资等专业结论；涉及钱、健康、重大关系时提醒用户自行判断，严重危机应建议寻求线下专业帮助或紧急支持。",
   "输出必须是合法 JSON，不要使用 Markdown 代码块，不要解释技术实现。",
   "报告需要比普通娱乐文案更具体：必须结合四柱、五行强弱、八卦六爻、变爻、星术参照、流年、用户问题和心理动力，给出分层判断和可执行建议。",
+  "如果资料包包含 mysticSystems，必须把八字、六爻/梅花、奇门/紫微、姻缘、风水或塔罗中最相关的 2-4 个体系做交叉验证；不要把所有术语堆给用户，要翻译成白话。",
   "必须围绕用户原始提问展开，不要只套模板；每个结论都要有命盘依据、心理解释和现实行动三层。",
   "语气：东方玄学产品感，克制、有质感、具体可执行，不恐吓用户。",
 ].join("\n");
@@ -192,6 +194,7 @@ const CHAT_SYSTEM_PROMPT = [
   "你会基于用户已生成的命盘资料和报告继续回答追问。",
   "回答风格要白话、直接、像一个懂命盘也懂现实生活的人在解释：少用术语堆砌，术语出现后必须马上翻译成人话。",
   "每次回答都要先给用户能听懂的结论，再解释命盘为什么这么看，再拆心理原因，最后给可执行步骤。",
+  "如果上下文包含 mysticSystems，只选最相关的 1-2 个术数层辅助解释；例如感情用姻缘层/日支/六爻，事业财运用八字十神/奇门，纠结选择可用梅花/塔罗心理镜像。",
   "固定使用 5 个小段落，段首分别为：【直接结论】【为什么这么看】【你心里真正卡的点】【接下来怎么做】【留给你的问题】。",
   "【直接结论】用 2-3 句话正面回答用户问题，不绕弯，不只说“看缘分”“顺其自然”。",
   "【为什么这么看】引用至少 2 类资料：四柱/日主、五行强弱、八卦六爻/变爻、星术参照、流年主题；但要把每个依据翻译成白话，例如“火弱”要解释成行动热度、表达欲或动力容易不足。",
@@ -1027,20 +1030,38 @@ function buildFortuneProfile(input) {
   const sixYao = buildSixYaoInsight(hexagrams, strongest, weakest, focusLabel);
   const psychology = buildPsychologyLens(strongest, weakest, focusLabel, question);
   const stellar = buildStellarInsight(sign, focusLabel);
+  const userProfile = {
+    name,
+    gender,
+    question,
+    focus,
+    focusLabel,
+    birthDate: input.birthDate,
+    birthTime: input.birthTime || "未知",
+    birthPlace: trueSolarTime.place?.input || "",
+    resolvedBirthPlace: trueSolarTime.place?.name || "",
+    useTrueSolarTime: trueSolarTime.enabled,
+  };
+  const mysticSystems = buildMysticSystems({
+    user: userProfile,
+    pillars,
+    elements,
+    hexagrams,
+    sixYao,
+    psychology,
+    stellar,
+    annualFlow,
+    domains,
+    seed,
+    focus,
+    focusLabel,
+    question,
+    birth: { ...birth, hour: Number(parsedHour || 0) },
+    trueSolarTime,
+  });
 
   return {
-    user: {
-      name,
-      gender,
-      question,
-      focus,
-      focusLabel,
-      birthDate: input.birthDate,
-      birthTime: input.birthTime || "未知",
-      birthPlace: trueSolarTime.place?.input || "",
-      resolvedBirthPlace: trueSolarTime.place?.name || "",
-      useTrueSolarTime: trueSolarTime.enabled,
-    },
+    user: userProfile,
     meta: {
       generatedAt: new Date().toISOString(),
       engine: "命盘师 AI 命盘资料包 v0.6 / lunar-javascript + true solar time",
@@ -1075,6 +1096,7 @@ function buildFortuneProfile(input) {
     sixYao,
     psychology,
     stellar,
+    mysticSystems,
     trigrams: TRIGRAMS,
     annualFlow,
     domains,
@@ -1107,6 +1129,82 @@ function pillarView(pillar) {
   };
 }
 
+function compactMysticSystemsForPrompt(mysticSystems = {}) {
+  const layers = mysticSystems.layers || {};
+  return {
+    version: mysticSystems.version,
+    policy: (mysticSystems.integrationPolicy || []).slice(0, 3),
+    bazi: {
+      dayMaster: layers.bazi?.dayMaster,
+      spousePalace: layers.bazi?.spousePalace,
+      elementBalance: layers.bazi?.elementBalance,
+      tenGods: layers.bazi?.tenGods,
+    },
+    liuyao: layers.liuyao ? {
+      yongshen: layers.liuyao.yongshen,
+      line: layers.liuyao.line,
+      lineTheme: layers.liuyao.lineTheme,
+      plain: layers.liuyao.plain,
+    } : undefined,
+    meihua: layers.meihua ? {
+      body: layers.meihua.body,
+      use: layers.meihua.use,
+      relation: layers.meihua.relation,
+      trend: layers.meihua.trend,
+    } : undefined,
+    ziwei: layers.ziwei ? {
+      lifePalaceHint: layers.ziwei.lifePalaceHint,
+      focusPalaceHint: layers.ziwei.focusPalaceHint,
+      fourTransformations: layers.ziwei.fourTransformations,
+      plain: layers.ziwei.plain,
+    } : undefined,
+    qimen: layers.qimen ? {
+      palace: layers.qimen.palace,
+      door: layers.qimen.door,
+      star: layers.qimen.star,
+      deity: layers.qimen.deity,
+      plain: layers.qimen.plain,
+    } : undefined,
+    yinyuan: layers.yinyuan,
+    fengshui: layers.fengshui ? {
+      weakElement: layers.fengshui.weakElement,
+      directionHint: layers.fengshui.directionHint,
+      plain: layers.fengshui.plain,
+    } : undefined,
+    tarot: layers.tarot ? {
+      cards: layers.tarot.cards,
+      plain: layers.tarot.plain,
+    } : undefined,
+    crossChecks: (mysticSystems.crossChecks || []).slice(0, 5),
+    chatGuidance: (mysticSystems.chatGuidance || []).slice(0, 4),
+  };
+}
+
+function compactProfileForPrompt(profile) {
+  return {
+    user: profile.user,
+    meta: {
+      generatedAt: profile.meta?.generatedAt,
+      engine: profile.meta?.engine,
+      trueSolarTime: profile.meta?.trueSolarTime,
+      lunarText: profile.meta?.lunarText,
+      jieQi: profile.meta?.jieQi,
+    },
+    western: profile.western,
+    pillars: profile.pillars,
+    elements: profile.elements,
+    relations: profile.relations,
+    hexagrams: profile.hexagrams,
+    sixYao: profile.sixYao,
+    psychology: profile.psychology,
+    stellar: profile.stellar,
+    mysticSystems: compactMysticSystemsForPrompt(profile.mysticSystems),
+    annualFlow: profile.annualFlow,
+    domains: profile.domains,
+    lucky: profile.lucky,
+  };
+}
+
 function buildPrompt(profile) {
   const schema = {
     title: "命盘师 AI 命盘报告",
@@ -1124,6 +1222,7 @@ function buildPrompt(profile) {
       { title: "命盘总览", body: "180-240 字，解释整体格局与性格底色" },
       { title: "五行能量", body: "160-220 字，解释能量分布对状态、选择、节奏的影响" },
       { title: "六爻卦象", body: "180-240 字，解释本卦、变卦、动爻位置、当下阻力和转化方向" },
+      { title: "多术数交叉验证", body: "180-260 字，结合 mysticSystems 中八字、六爻/梅花、奇门/紫微、姻缘、风水、塔罗中最相关的 2-4 个体系，用白话说明共同指向和现实检验方式" },
       { title: "星术参照", body: "140-200 字，结合星座侧影说明表达方式、压力反应和节奏建议" },
       { title: "心理动力", body: "200-260 字，用咨询式语言说明核心需要、压力模式、边界和自我提问，不做诊断" },
       { title: "事业与学业", body: "180-240 字，给出行业/岗位/学习方式倾向" },
@@ -1144,10 +1243,11 @@ function buildPrompt(profile) {
     "要求：回答用户具体问题；不要编造真实外部数据；不要说自己无法算命；保持娱乐边界；输出严格 JSON。",
     "内容要丰富但不空泛，避免只说“稳步观察”“注意沟通”这类泛句。每个模块都要落到用户可以理解和执行的场景。",
     "如果 profile.meta.trueSolarTime.applied 为 true，必须在命盘总览或重点问题里简短说明排盘采用了真太阳时校正，并引用校正后的时间。",
+    "如果 profile.mysticSystems 存在，必须输出“多术数交叉验证”章节；只选最相关的体系，不要把所有层逐条罗列。",
     "心理内容只做自我反思、情绪识别、边界澄清和行动建议，不做诊断，不替代心理治疗或线下专业支持。",
     "重点问题必须直接回应用户原话，每个判断都尽量写出：命盘依据、心理动力、现实检验方式。",
     "",
-    JSON.stringify({ profile, outputSchema: schema }, null, 2),
+    JSON.stringify({ profile: compactProfileForPrompt(profile), outputSchema: schema }),
   ].join("\n");
 }
 
@@ -1202,7 +1302,7 @@ function buildRequestPayload(config, profile, forcePlainText = false) {
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: buildPrompt(profile) },
       ],
-      max_tokens: Number(process.env.OPENAI_MAX_OUTPUT_TOKENS || 4200),
+      max_tokens: Number(process.env.OPENAI_MAX_OUTPUT_TOKENS || 2800),
     };
 
     const isKimiK2 = config.provider === "Kimi" && /^kimi-k2\.(5|6)/.test(config.model);
@@ -1225,7 +1325,7 @@ function buildRequestPayload(config, profile, forcePlainText = false) {
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: buildPrompt(profile) },
     ],
-    max_output_tokens: Number(process.env.OPENAI_MAX_OUTPUT_TOKENS || 4200),
+    max_output_tokens: Number(process.env.OPENAI_MAX_OUTPUT_TOKENS || 2800),
   };
 
   const effort = process.env.OPENAI_REASONING_EFFORT || "low";
@@ -1255,6 +1355,7 @@ function buildChatPrompt({ profile, report, history, message }) {
       sixYao: profile?.sixYao,
       psychology: profile?.psychology,
       stellar: profile?.stellar,
+      mysticSystems: profile?.mysticSystems,
       annualFlow: profile?.annualFlow,
       reportSummary: report?.summary,
       reportSections: report?.sections,
@@ -1401,9 +1502,30 @@ function reportContext(profile) {
   const sixYao = profile.sixYao || {};
   const psychology = profile.psychology || {};
   const stellar = profile.stellar || {};
+  const mysticSystems = profile.mysticSystems || {};
   const firstFlow = profile.annualFlow?.[0] || {};
   const trueSolarTime = profile.meta?.trueSolarTime || {};
-  return { user, pillars, elements, strongest, weakest, primary, changed, sixYao, psychology, stellar, firstFlow, trueSolarTime };
+  return { user, pillars, elements, strongest, weakest, primary, changed, sixYao, psychology, stellar, mysticSystems, firstFlow, trueSolarTime };
+}
+
+function mysticSynthesisText(profile) {
+  const mystic = profile.mysticSystems || {};
+  const layers = mystic.layers || {};
+  const crossChecks = Array.isArray(mystic.crossChecks) ? mystic.crossChecks : [];
+  const selected = [
+    layers.bazi?.elementBalance?.plain ? `八字看底盘：${layers.bazi.elementBalance.plain}` : "",
+    layers.liuyao?.plain ? `六爻看事件：${layers.liuyao.plain}` : "",
+    layers.meihua?.plain ? `梅花看体用：${layers.meihua.plain}` : "",
+    layers.qimen?.plain ? `奇门看行动：${layers.qimen.plain}` : "",
+    layers.yinyuan?.active && layers.yinyuan?.plain ? `姻缘看关系：${layers.yinyuan.plain}` : "",
+    layers.fengshui?.plain ? `风水看环境：${layers.fengshui.plain}` : "",
+    layers.tarot?.plain ? `塔罗作心理镜像：${layers.tarot.plain}` : "",
+  ].filter(Boolean);
+  return ensureRichText("", [
+    selected.slice(0, 4).join("；"),
+    crossChecks.slice(0, 3).join("；"),
+    "这些体系只取共同方向：先看底盘强弱，再看事件变化，最后回到现实行动。若各体系提示不一致，以现实证据和用户当下状态为准，不把任何单一术数当成绝对结论。",
+  ], 220);
 }
 
 function domainFallback(profile, domain, existing = "") {
@@ -1428,6 +1550,7 @@ function sectionFallback(profile, title, existing = "") {
     命盘总览: `${solarNote}${user.name || "你"}的日主为${dayMaster}，命盘里${strongest.element}能量较突出，${weakest.element}相对需要补足。整体更适合先建立清晰规则、稳定输出和可见成果，再去争取外部机会。${primary.name || "本卦"}的主题提示你不要只看一时起伏，而要观察长期互动、资源流向和自身节奏；${sixYao.movement || "变爻"}则说明当下有一个可被调整的关键节点。`,
     五行能量: `五行分布显示${strongest.element}偏强，代表你的优势会通过相关特质被放大；${weakest.element}偏弱，则是容易感到卡顿的地方。心理层面，强势能量对应${psychology.coreNeed || "核心需要"}，弱势能量容易表现为${psychology.stressPattern || "压力下失去节奏"}。补足方向不是迷信某个颜色或物件，而是把对应的现实能力补上，例如秩序、行动、表达、资源整合或休息恢复。`,
     六爻卦象: `${sixYao.movement || `${primary.name || "本卦"}之${changed.name || "变卦"}`}，动在${sixYao.lineName || "动爻"}，主题落在${sixYao.lineTheme || "变化位置"}。本卦看${sixYao.primaryFocus || primary.trigram?.meaning || "当下格局"}，变卦看${sixYao.changedFocus || changed.trigram?.meaning || "后续走向"}。这表示你的问题不能只求一个“成或不成”的答案，而要拆成起因、关系、行动、环境、选择和收束六层；其中${strongest.element}是可主动使用的力量，${weakest.element}是需要补足的资源。`,
+    多术数交叉验证: mysticSynthesisText(profile),
     星术参照: `${stellar.sign || profile.western?.sign || "星术参照"}带来的侧影是${stellar.gift || "观察力与适应力"}，压力下可能${stellar.shadow || "节奏不稳"}。它不决定命运，但能帮助你理解自己的表达方式和压力反应。放在${user.focusLabel || "当前重点"}里，建议采用“${stellar.practice || "先稳定节奏，再做选择"}”的策略，让星术参照服务于现实行动。`,
     心理动力: `从咨询式自我反思看，你当前更深的需要可能是${psychology.coreNeed || "安全感、价值感或方向感"}，压力模式容易表现为${psychology.stressPattern || "把不确定感放大"}。建议使用“触发事件-自动想法-情绪强度-身体感受-可选择行动”的链路复盘，不急着给自己贴标签。边界上，要区分你能控制的行动、你能协商的关系、以及你需要允许其不确定的结果。可以问自己：${psychology.reflectionQuestion || "我真正想守住的价值是什么？"}`,
     事业与学业: `事业与学业上，适合把抽象能力沉淀为作品、流程、证书或案例。若考虑跳槽、升职、转型，先确认你手里是否有可展示成果和谈判筹码。${sixYao.lineTheme ? `动爻落在${sixYao.lineTheme}，提醒你先处理这一层的阻力。` : ""}${user.question ? `围绕“${user.question}”，` : ""}更建议先做准备窗口，再选择行动窗口。`,
@@ -1485,12 +1608,14 @@ function sectionFallback(profile, title, existing = "") {
 
 function normalizeReport(report, profile) {
   const normalized = normalizeReportBrand(report && typeof report === "object" ? report : {});
-  const { user, pillars, strongest, weakest, primary, changed, sixYao, psychology, stellar, firstFlow, trueSolarTime } = reportContext(profile);
+  const { user, pillars, strongest, weakest, primary, changed, sixYao, psychology, stellar, mysticSystems, firstFlow, trueSolarTime } = reportContext(profile);
+  const mysticLayers = mysticSystems.layers || {};
 
   normalized.summary = ensureRichText(normalized.summary, [
     trueSolarTime.applied ? `本次采用真太阳时校正：${trueSolarTime.place?.name || "出生地"} ${trueSolarTime.correctedTime}，较填写时间${formatOffset(trueSolarTime.offsetMinutesExact)}。` : "",
     `${user.name || "你"}的日主为${pillars.dayMaster || "日主"}，五行里${strongest.element}较强、${weakest.element}较弱，说明优势与短板都比较清晰。`,
     `${sixYao.movement || `${primary.name || "本卦"}到${changed.name || "变卦"}`}提示事情不是一锤定音，更适合用阶段验证、稳定输出和复盘来推动。`,
+    mysticSystems.version ? `多术数层会把八字、六爻/梅花、奇门、姻缘、风水和塔罗当作不同角度交叉验证：共同指向才放大，冲突之处用现实证据复核。` : "",
     `星术参照为${stellar.sign || profile.western?.sign || "未定"}，心理动力重点是${psychology.coreNeed || "辨认真实需要"}；围绕${user.focusLabel || "整体格局"}，建议把想法落到具体行动、情绪复盘与现实反馈上。`,
     `${sixYao.lineTheme ? `动爻落在${sixYao.lineTheme}，` : ""}意味着你现在最该处理的不是抽象运气，而是某个可以被看见、被沟通、被验证的现实环节。`,
     `如果问题涉及选择，先把“我想要什么”“我害怕什么”“我能做什么”分开写清楚，再用 7 天内的小行动测试局面的真实反馈。`,
@@ -1501,6 +1626,9 @@ function normalizeReport(report, profile) {
     user.focusLabel,
     primary.name,
     sixYao.lineName ? `六爻${sixYao.lineName}` : "六爻",
+    mysticSystems.version ? "多术数交叉" : "",
+    mysticLayers.qimen?.door,
+    mysticLayers.tarot?.cards?.[0]?.name,
     trueSolarTime.applied ? "真太阳时" : "",
     stellar.sign,
     "心理动力",
@@ -1515,6 +1643,9 @@ function normalizeReport(report, profile) {
     `五行最强为${strongest.element}（${strongest.percent || 0}%），最弱为${weakest.element}（${weakest.percent || 0}%），强项宜输出，弱项宜建立补足机制。`,
     `本卦${primary.name || "--"}、变卦${changed.name || "--"}，提示当前主题既有稳定面，也有需要调整的变量。`,
     sixYao.movement ? `${sixYao.movement}，动爻主题是${sixYao.lineTheme || "变化位置"}，适合从这一层找突破口。` : "",
+    mysticSystems.crossChecks?.[0] || "",
+    mysticLayers.qimen?.plain ? `奇门问事层显示：${mysticLayers.qimen.plain}` : "",
+    mysticLayers.yinyuan?.active && mysticLayers.yinyuan?.plain ? `姻缘关系层显示：${mysticLayers.yinyuan.plain}` : "",
     stellar.sign ? `${stellar.sign}作为星术参照，优势是${stellar.gift || "适应力"}，压力下需留意${stellar.shadow || "节奏失衡"}。` : "",
     psychology.coreNeed ? `心理动力上更在意${psychology.coreNeed}，压力模式可能是${psychology.stressPattern || "不确定感放大"}，适合用行动复盘降低内耗。` : "",
     trueSolarTime.applied ? `已按${trueSolarTime.place?.name || "出生地"}真太阳时 ${trueSolarTime.correctedTime} 起盘，时柱与日柱以校正后时间为准。` : "",
@@ -1550,7 +1681,7 @@ function normalizeReport(report, profile) {
     };
   });
 
-  const requiredTitles = ["命盘总览", "五行能量", "六爻卦象", "星术参照", "心理动力", "事业与学业", "感情与人际", "财运与资源", "身心与节奏", "重点问题", "趋吉避凶"];
+  const requiredTitles = ["命盘总览", "五行能量", "六爻卦象", "多术数交叉验证", "星术参照", "心理动力", "事业与学业", "感情与人际", "财运与资源", "身心与节奏", "重点问题", "趋吉避凶"];
   const aiSections = new Map((normalized.sections || []).map((item) => [item.title, item]));
   normalized.sections = requiredTitles.map((title) => ({
     title,
@@ -1564,6 +1695,7 @@ function normalizeReport(report, profile) {
     "把贵人运理解为可见度：整理作品、数据、案例或复盘记录。",
     "涉及金钱、健康和长期关系时，用现实证据校验报告提示。",
     "用“触发事件-自动想法-情绪强度-可选行动”记录一次本周最在意的情绪。",
+    "不同术数层若出现冲突，先做现实验证，不急着选择最想听的答案。",
     "问自己：我是在追求真实价值，还是在躲避不确定感？",
   ]).slice(0, 7);
 

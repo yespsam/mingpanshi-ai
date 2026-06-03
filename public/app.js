@@ -312,6 +312,82 @@ function compactText(value, maxLength = 88) {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
 }
 
+function mysticSkillRows(profile = {}) {
+  const layers = profile.mysticSystems?.layers || {};
+  return [
+    {
+      key: "bazi",
+      name: "八字",
+      title: `${layers.bazi?.dayMaster || profile.pillars?.dayMaster || "--"}日主`,
+      detail: layers.bazi?.elementBalance?.plain || "四柱、十神、五行底盘",
+    },
+    {
+      key: "liuyao",
+      name: "六爻",
+      title: `${layers.liuyao?.yongshen || "用神"} · ${layers.liuyao?.line || profile.sixYao?.lineName || "--"}`,
+      detail: layers.liuyao?.lineTheme || layers.liuyao?.plain || "用神、世应、动爻事件判断",
+    },
+    {
+      key: "meihua",
+      name: "梅花",
+      title: `${layers.meihua?.body || "体卦"} / ${layers.meihua?.use || "用卦"}`,
+      detail: layers.meihua?.trend || layers.meihua?.plain || "体用生克与趋势验证",
+    },
+    {
+      key: "ziwei",
+      name: "紫微",
+      title: layers.ziwei?.focusPalaceHint || "宫位入口",
+      detail: (layers.ziwei?.fourTransformations || []).slice(0, 3).join(" · ") || layers.ziwei?.plain || "宫位与四化视角",
+    },
+    {
+      key: "qimen",
+      name: "奇门",
+      title: `${layers.qimen?.palace || "九宫"} · ${layers.qimen?.door || "门"}`,
+      detail: [layers.qimen?.star, layers.qimen?.deity].filter(Boolean).join(" · ") || layers.qimen?.plain || "宫门星神行动判断",
+    },
+    {
+      key: "yinyuan",
+      name: "姻缘",
+      title: `${layers.yinyuan?.spouseStar || "关系星"} · ${layers.yinyuan?.spousePalace || "配偶宫"}`,
+      detail: layers.yinyuan?.plain || "日支、配偶宫、关系边界",
+    },
+    {
+      key: "fengshui",
+      name: "风水",
+      title: `${layers.fengshui?.weakElement || "五行"}需补 · ${layers.fengshui?.directionHint || "空间方向"}`,
+      detail: layers.fengshui?.plain || "阳宅/办公环境习惯建议",
+    },
+    {
+      key: "tarot",
+      name: "塔罗",
+      title: (layers.tarot?.cards || []).map((card) => `${card.name}${card.orientation || ""}`).join(" / ") || "心理镜像",
+      detail: layers.tarot?.plain || "牌面作为自我观察提示",
+    },
+  ].filter((item) => item.title && item.title !== "--");
+}
+
+function renderMysticSkillPanel(profile = {}) {
+  const rows = mysticSkillRows(profile);
+  if (!rows.length) return "";
+  return `
+    <section class="mystic-skill-panel" aria-label="已挂载术数 Skill">
+      <div class="skill-panel-head">
+        <span>MYSTIC SKILLS</span>
+        <strong>${rows.length} 个能力层已接入</strong>
+      </div>
+      <div class="skill-chip-grid">
+        ${rows.map((item) => `
+          <article class="skill-chip skill-${escapeHtml(item.key)}">
+            <span>${escapeHtml(item.name)}</span>
+            <strong>${escapeHtml(compactText(item.title, 28))}</strong>
+            <small>${escapeHtml(compactText(item.detail, 48))}</small>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderResultMeta() {
   if (!resultMeta) return;
   const label = "命盘师生成";
@@ -353,7 +429,7 @@ function renderReportBrief(profile = {}, report = {}, payload = {}) {
         <small>${escapeHtml(note)}</small>
       </article>
     `)
-    .join("");
+    .join("") + renderMysticSkillPanel(profile);
 }
 
 function pillarSnapshot(profile = {}) {
@@ -564,6 +640,10 @@ function reportToText(payload) {
   }
 
   if (report.elementInsight) parts.push("", "五行分析", report.elementInsight);
+  const skillRows = mysticSkillRows(profile);
+  if (skillRows.length) {
+    parts.push("", "已挂载术数 Skill", ...skillRows.map((item) => `- ${item.name}：${item.title}｜${item.detail}`));
+  }
   for (const section of report.sections || []) parts.push("", section.title || "命盘解读", section.body || "");
 
   if (Array.isArray(report.advice) && report.advice.length) {
