@@ -26,6 +26,39 @@
     return clean.length > max ? `${clean.slice(0, max)}...` : clean;
   }
 
+  const elementExplain = {
+    木: { ability: "计划、成长、学习和适应变化的能力", lack: "方向感、学习弹性或长期规划需要补", action: "把目标拆成清单，每周固定复盘一次" },
+    火: { ability: "表达、行动热度和快速启动的能力", lack: "动力、表达或主动争取机会的能量需要补", action: "先做一个小的公开行动，比如沟通、投递或展示作品" },
+    土: { ability: "稳定、承接、责任感和落地能力", lack: "稳定感、生活节奏或长期承接能力需要补", action: "先固定作息、预算和工作边界" },
+    金: { ability: "规则、边界、判断力和复盘能力", lack: "边界、复盘、谈判和取舍能力需要补", action: "写清楚底线、成本、风险和可接受结果" },
+    水: { ability: "观察、沟通、信息整合和情绪调节能力", lack: "沟通、信息整合、休息恢复或情绪流动需要补", action: "先减少噪音，找一个可信反馈源做现实校验" },
+  };
+
+  function elementLine(item = {}, mode = "ability") {
+    const element = item.element || "";
+    const detail = elementExplain[element] || { ability: "你比较容易调动的现实能力", lack: "某个现实能力需要补足", action: "把问题拆成一个能验证的小动作" };
+    const percent = item.percent ? `（${item.percent}%）` : "";
+    return `${element || "优势"}${percent}代表${detail[mode] || detail.ability}`;
+  }
+
+  function plainSummaryText(profile = {}, report = {}) {
+    if (report.plainSummary) return String(report.plainSummary).trim();
+    const pillars = profile.pillars || {};
+    const elements = profile.elements || [];
+    const strongest = elements[0] || {};
+    const weakest = elements[elements.length - 1] || {};
+    const focus = profile.user?.question ? `你问的“${profile.user.question}”` : (profile.user?.focusLabel || "当前问题");
+    const stress = profile.psychology?.stressPattern || `弱${weakest.element || "项"}带来的不确定感`;
+    const flow = profile.annualFlow?.[0]?.year ? `${profile.annualFlow[0].year}年适合分阶段验证` : "近期适合先小步验证";
+    const weakAction = (elementExplain[weakest.element] || {}).action || "先做一个能拿到反馈的小动作";
+    return [
+      `结论：这件事先别急着定输赢，更适合稳住节奏后小步推进。${pillars.dayMaster || pillars.day?.stem ? `日主只是底色，不是最终答案。` : ""}`,
+      `为什么：${elementLine(strongest, "ability")}；${elementLine(weakest, "lack")}。你有能用的优势，也有需要刻意补的短板。`,
+      `注意：${focus}最容易被${stress}带偏，别在情绪很满时立刻拍板。`,
+      `下一步：${flow}，先做一个能拿到反馈的小动作；${weakAction}。`,
+    ].join("\n");
+  }
+
   function listHtml(items = [], ordered = false) {
     const tag = ordered ? "ol" : "ul";
     const safeItems = (items || []).filter(Boolean);
@@ -183,6 +216,7 @@
     const trueSolar = profile.meta?.trueSolarTime || {};
     const title = normalizeReportTitle(report.title);
     const summary = report.summary || "报告已生成。";
+    const plainSummary = plainSummaryText(profile, report);
     const sections = [];
 
     let index = 1;
@@ -195,6 +229,7 @@
       }
     };
 
+    add("先看结论", plainSummary, { featured: true });
     add("总论", summary, { featured: true });
     add("命盘要点", "", { list: report.keyPoints || [], featured: true });
     add("五行分析", report.elementInsight);
@@ -229,7 +264,7 @@
           <div>
             <span class="reader-kicker">FULL REPORT // READABLE MODE</span>
             <h2>${escapeHtml(title)}</h2>
-            <p>${escapeHtml(compact(summary, 260))}</p>
+            <p>${escapeHtml(compact(plainSummary, 260))}</p>
           </div>
           <div class="reader-tags">
             ${tags.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
@@ -265,6 +300,7 @@
   window.MPS_REPORT_VIEW = {
     STORE_KEY,
     escapeHtml,
+    plainSummaryText,
     renderReadableReport,
     normalizeReportTitle,
   };

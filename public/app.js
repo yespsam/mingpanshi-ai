@@ -69,6 +69,7 @@ let accessRequired = false;
 let account = null;
 let currentConversationId = "";
 let pendingAction = null;
+let enhancementRequestId = 0;
 
 const elementColors = {
   木: "var(--green)",
@@ -312,6 +313,39 @@ function compactText(value, maxLength = 88) {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
 }
 
+const elementExplain = {
+  木: { ability: "计划、成长、学习和适应变化的能力", lack: "方向感、学习弹性或长期规划需要补", action: "把目标拆成清单，每周固定复盘一次" },
+  火: { ability: "表达、行动热度和快速启动的能力", lack: "动力、表达或主动争取机会的能量需要补", action: "先做一个小的公开行动，比如沟通、投递或展示作品" },
+  土: { ability: "稳定、承接、责任感和落地能力", lack: "稳定感、生活节奏或长期承接能力需要补", action: "先固定作息、预算和工作边界" },
+  金: { ability: "规则、边界、判断力和复盘能力", lack: "边界、复盘、谈判和取舍能力需要补", action: "写清楚底线、成本、风险和可接受结果" },
+  水: { ability: "观察、沟通、信息整合和情绪调节能力", lack: "沟通、信息整合、休息恢复或情绪流动需要补", action: "先减少噪音，找一个可信反馈源做现实校验" },
+};
+
+function elementLine(item = {}, mode = "ability") {
+  const element = item.element || "";
+  const detail = elementExplain[element] || { ability: "你比较容易调动的现实能力", lack: "某个现实能力需要补足", action: "把问题拆成一个能验证的小动作" };
+  const percent = item.percent ? `（${item.percent}%）` : "";
+  return `${element || "优势"}${percent}代表${detail[mode] || detail.ability}`;
+}
+
+function plainSummaryText(profile = {}, report = {}) {
+  if (report.plainSummary) return String(report.plainSummary).trim();
+  const pillars = profile.pillars || {};
+  const elements = profile.elements || [];
+  const strongest = elements[0] || {};
+  const weakest = elements[elements.length - 1] || {};
+  const focus = profile.user?.question ? `你问的“${profile.user.question}”` : (profile.user?.focusLabel || "当前问题");
+  const stress = profile.psychology?.stressPattern || `弱${weakest.element || "项"}带来的不确定感`;
+  const flow = profile.annualFlow?.[0]?.year ? `${profile.annualFlow[0].year}年适合分阶段验证` : "近期适合先小步验证";
+  const weakAction = (elementExplain[weakest.element] || {}).action || "先做一个能拿到反馈的小动作";
+  return [
+    `结论：这件事先别急着定输赢，更适合稳住节奏后小步推进。${pillars.dayMaster || pillars.day?.stem ? `日主只是底色，不是最终答案。` : ""}`,
+    `为什么：${elementLine(strongest, "ability")}；${elementLine(weakest, "lack")}。你有能用的优势，也有需要刻意补的短板。`,
+    `注意：${focus}最容易被${stress}带偏，别在情绪很满时立刻拍板。`,
+    `下一步：${flow}，先做一个能拿到反馈的小动作；${weakAction}。`,
+  ].join("\n");
+}
+
 function mysticSkillRows(profile = {}) {
   const layers = profile.mysticSystems?.layers || {};
   return [
@@ -388,15 +422,23 @@ function renderMysticSkillPanel(profile = {}) {
   `;
 }
 
-function renderResultMeta() {
+function renderResultMeta(payload = {}) {
   if (!resultMeta) return;
   const label = "命盘师生成";
+  const status = payload.enhancement?.status || payload.conversation?.enhancement?.status || "";
+  const statusLabel = {
+    pending: "Kimi 深度增强待处理",
+    processing: "Kimi 深度增强中",
+    complete: "Kimi 深度增强完成",
+    failed: "基础报告已完成",
+    unavailable: "基础报告已完成",
+  }[status] || "已完成";
   resultMeta.innerHTML = `
     <span class="model-pill live">
       <i aria-hidden="true"></i>
       ${escapeHtml(label)}
     </span>
-    <small>已完成</small>
+    <small>${escapeHtml(statusLabel)}</small>
   `;
 }
 
@@ -411,6 +453,7 @@ function renderReportBrief(profile = {}, report = {}, payload = {}) {
   const psychology = profile.psychology?.coreNeed || "等待解析";
   const focus = profile.user?.focusLabel || "重点问题";
   const focusSection = (report.sections || []).find((item) => item.title === "重点问题")?.body || report.summary || "";
+  const plainSummary = plainSummaryText(profile, report);
   const timeNote = trueSolar.applied
     ? `${trueSolar.place?.name || "出生地"} · 真太阳时 ${trueSolar.correctedTime} · ${trueSolar.offsetMinutesExact >= 0 ? "+" : ""}${trueSolar.offsetMinutesExact} 分钟`
     : (trueSolar.enabled ? trueSolar.note || "真太阳时未应用" : "按标准北京时间");
@@ -421,7 +464,13 @@ function renderReportBrief(profile = {}, report = {}, payload = {}) {
     ["重点回应", focus, compactText(focusSection, 44)],
   ];
 
-  reportBrief.innerHTML = items
+  reportBrief.innerHTML = `
+    <article class="plain-summary-card">
+      <span>先看结论</span>
+      <strong>这份报告在说什么</strong>
+      <p>${escapeHtml(plainSummary)}</p>
+    </article>
+  ` + items
     .map(([label, value, note]) => `
       <article class="brief-item">
         <span>${escapeHtml(label)}</span>
@@ -529,7 +578,7 @@ function renderDomains(profile = {}, report = {}) {
     .join("");
 }
 
-function renderSections(report = {}) {
+function renderSections(profile = {}, report = {}) {
   const sections = Array.isArray(report.sections) ? report.sections : [];
   const advice = Array.isArray(report.advice) ? report.advice : [];
   const counselingPrompts = Array.isArray(report.counselingPrompts) ? report.counselingPrompts : [];
@@ -554,6 +603,8 @@ function renderSections(report = {}) {
       </details>
     `);
   };
+
+  pushSection("先看结论", plainSummaryText(profile, report), { featured: true });
 
   if (keyPoints.length) {
     pushSection("命盘要点", "", { list: keyPoints, featured: true });
@@ -629,6 +680,9 @@ function reportToText(payload) {
   const parts = [
     normalizedReportTitle(report.title),
     "",
+    "先看结论",
+    plainSummaryText(profile, report),
+    "",
     report.summary || "",
     "",
     `命盘：${profile.pillars?.year?.name || "--"} ${profile.pillars?.month?.name || "--"} ${profile.pillars?.day?.name || "--"} ${profile.pillars?.hour?.name || "--"}`,
@@ -686,6 +740,44 @@ function renderFullReadableReport(payload) {
   fullReportSection.hidden = false;
 }
 
+function enhancementStatus(payload = {}) {
+  return payload.enhancement?.status || payload.conversation?.enhancement?.status || "";
+}
+
+async function requestReportEnhancement(conversationId, requestId) {
+  if (!conversationId) return;
+  try {
+    renderResultMeta({ enhancement: { status: "processing" } });
+    const response = await fetch("/api/reading-enhancement", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Access-Code": storedAccessCode() },
+      body: JSON.stringify({ clientId: clientId(), conversationId }),
+    });
+    const data = await response.json();
+    if (requestId !== enhancementRequestId) return;
+    if (!response.ok || !data.ok) throw new Error(data.message || "增强失败");
+    if (data.enhancement?.status === "complete") {
+      renderAccount(data.account);
+      renderReport(data);
+      showToast("Kimi 深度增强已完成，报告已自动更新。");
+      return;
+    }
+    renderResultMeta(data);
+  } catch (error) {
+    if (requestId === enhancementRequestId) {
+      renderResultMeta({ enhancement: { status: "failed" } });
+    }
+  }
+}
+
+function maybeStartReportEnhancement(payload = {}) {
+  if (enhancementStatus(payload) !== "pending") return;
+  const conversationId = payload.conversationId || payload.conversation?.id || currentConversationId;
+  if (!conversationId) return;
+  const requestId = ++enhancementRequestId;
+  window.setTimeout(() => requestReportEnhancement(conversationId, requestId), 300);
+}
+
 function openFullReportPage() {
   if (!lastReportText) {
     showToast("请先生成一份命盘报告。");
@@ -699,7 +791,7 @@ function renderReport(payload) {
   const hexagram = profile.hexagrams?.primary;
 
   reportTitle.textContent = normalizedReportTitle(report.title);
-  summary.textContent = report.summary || "报告已生成。";
+  summary.textContent = plainSummaryText(profile, report) || report.summary || "报告已生成。";
   renderResultMeta(payload);
   renderTags([...(report.tags || []), hexagram?.name, provider || "", profile.stellar?.sign]);
   renderReportBrief(profile, report, payload);
@@ -707,7 +799,7 @@ function renderReport(payload) {
   renderPillars(profile);
   renderElements(profile.elements || []);
   renderDomains(profile, report);
-  renderSections(report);
+  renderSections(profile, report);
   renderAnnual(profile, report);
   renderLucky(profile, report);
   renderChat(payload.conversation?.messages || []);
@@ -716,6 +808,7 @@ function renderReport(payload) {
   storeLatestReport(payload);
   renderFullReadableReport(payload);
   setResultState("report");
+  maybeStartReportEnhancement(payload);
   window.setTimeout(() => {
     fullReportSection?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, 120);
@@ -730,6 +823,7 @@ function chatCreditsLeft() {
 }
 
 function resetView() {
+  enhancementRequestId += 1;
   form.reset();
   reportTitle.textContent = "等待解析";
   summary.textContent = "等待解析结果，填写资料后生成完整命盘，再输出专属报告。";
@@ -803,7 +897,7 @@ function downloadReport() {
 
 async function rechargeAccount() {
   payContinueBtn.disabled = true;
-  payContinueBtn.textContent = "充值中";
+  payContinueBtn.textContent = "创建订单中";
   try {
     const response = await fetch("/api/recharge", {
       method: "POST",
@@ -813,6 +907,12 @@ async function rechargeAccount() {
     const data = await response.json();
     if (!response.ok || !data.ok) throw new Error(data.message || "充值失败");
     renderAccount(data.account);
+    const paymentUrl = data.order?.paymentUrl || data.order?.checkoutUrl;
+    if (data.order?.status === "pending" && paymentUrl) {
+      showToast("加密支付订单已创建，正在打开支付页面。");
+      window.location.href = paymentUrl;
+      return;
+    }
     hideModal(payModal);
     showToast(data.order?.status === "paid" ? "已到账 10 次问事额度。" : "订单已创建，请完成支付。");
     const action = pendingAction;
@@ -822,7 +922,7 @@ async function rechargeAccount() {
     showToast(error.message || "充值失败，请稍后再试。");
   } finally {
     payContinueBtn.disabled = false;
-    payContinueBtn.textContent = "5 元购买 10 次";
+    payContinueBtn.textContent = "加密支付购买 10 次";
   }
 }
 

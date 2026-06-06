@@ -25,6 +25,9 @@ function reportToText(payload = {}) {
   const parts = [
     window.MPS_REPORT_VIEW.normalizeReportTitle(report.title),
     "",
+    "先看结论",
+    window.MPS_REPORT_VIEW.plainSummaryText(profile, report),
+    "",
     report.summary || "",
     "",
     `命盘：${profile.pillars?.year?.name || "--"} ${profile.pillars?.month?.name || "--"} ${profile.pillars?.day?.name || "--"} ${profile.pillars?.hour?.name || "--"}`,

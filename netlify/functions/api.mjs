@@ -18,6 +18,16 @@ function syncNetlifyEnv() {
     "OPENAI_MAX_OUTPUT_TOKENS",
     "OPENAI_CHAT_MAX_TOKENS",
     "PAYMENT_MODE",
+    "PAYMENT_PROVIDER",
+    "PUBLIC_SITE_URL",
+    "APP_BASE_URL",
+    "NOWPAYMENTS_API_BASE",
+    "NOWPAYMENTS_API_KEY",
+    "NOWPAYMENTS_IPN_SECRET",
+    "CRYPTO_PRICE_AMOUNT",
+    "CRYPTO_PRICE_CURRENCY",
+    "CRYPTO_PAY_CURRENCY",
+    "CRYPTO_SUCCESS_STATUSES",
   ]) {
     const value = env.get(key);
     if (value && !process.env[key]) process.env[key] = value;
@@ -74,5 +84,15 @@ export default async (request) => {
 };
 
 export const config = {
-  path: ["/api/health", "/api/account", "/api/recharge", "/api/share-unlock", "/api/reading", "/api/chat"],
+  path: [
+    "/api/health",
+    "/api/account",
+    "/api/order",
+    "/api/recharge",
+    "/api/share-unlock",
+    "/api/reading",
+    "/api/reading-enhancement",
+    "/api/chat",
+    "/api/payment-webhook/nowpayments",
+  ],
 };

@@ -207,6 +207,16 @@ const CHAT_SYSTEM_PROMPT = [
   "回答用中文纯文本，不要 Markdown 表格，不要编号堆砌，长度控制在 420-620 字。",
 ].join("\n");
 
+const REPORT_ENHANCEMENT_PROMPT = [
+  "你是“命盘师”的报告增强引擎。",
+  "你只增强短内容，不重新生成整份报告。",
+  "必须输出合法 JSON，不要 Markdown 代码块，不要解释技术实现。",
+  "输出要像给普通用户解释，不是把标题写成“大白话”，而是每一句都让人立刻知道是什么意思。",
+  "术语必须翻译成人话：例如“火旺”要解释成行动热度、表达欲或急躁感；“金弱”要解释成规则、边界、复盘或判断力需要补。",
+  "只围绕用户问题、重点问题、多术数交叉验证和行动建议增强。",
+  "不要恐吓用户，不做确定性命运断言，不提供医疗、法律、投资结论。",
+].join("\n");
+
 function loadEnv(filePath) {
   if (!fs.existsSync(filePath)) return;
   const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
@@ -355,6 +365,23 @@ function publicAccount(user) {
   };
 }
 
+function publicBilling() {
+  return {
+    plan: CREDIT_PACK,
+    paymentMode: process.env.PAYMENT_MODE || "demo",
+    paymentProvider: process.env.PAYMENT_PROVIDER || "demo",
+    crypto: {
+      enabled: paymentMode() === "crypto",
+      provider: cryptoPaymentConfig().provider,
+      priceAmount: cryptoPaymentConfig().priceAmount,
+      priceCurrency: cryptoPaymentConfig().priceCurrency,
+      payCurrency: cryptoPaymentConfig().payCurrency,
+    },
+    readingUnlock: "分享给朋友或朋友圈可免费解锁 1 次 AI 命盘测算",
+    chatUnitCost: "每次对话追问消耗 1 次额度",
+  };
+}
+
 function pushEvent(db, event) {
   db.events.push({ id: `evt_${crypto.randomUUID()}`, at: nowIso(), ...event });
   if (db.events.length > 500) db.events = db.events.slice(-500);
@@ -411,33 +438,193 @@ function unlockReadingByShare(db, user, channel = "friend") {
   });
 }
 
-function rechargeUser(db, user, planId = CREDIT_PACK.id) {
+function paymentMode() {
+  const mode = String(process.env.PAYMENT_MODE || "demo").trim().toLowerCase();
+  if (["crypto", "live"].includes(mode)) return "crypto";
+  return "demo";
+}
+
+function cryptoPaymentConfig() {
+  return {
+    provider: String(process.env.PAYMENT_PROVIDER || "nowpayments").trim().toLowerCase(),
+    apiBase: String(process.env.NOWPAYMENTS_API_BASE || "https://api.nowpayments.io/v1").replace(/\/$/, ""),
+    apiKey: String(process.env.NOWPAYMENTS_API_KEY || "").trim(),
+    ipnSecret: String(process.env.NOWPAYMENTS_IPN_SECRET || "").trim(),
+    priceAmount: String(process.env.CRYPTO_PRICE_AMOUNT || "0.70"),
+    priceCurrency: String(process.env.CRYPTO_PRICE_CURRENCY || "usd").toLowerCase(),
+    payCurrency: String(process.env.CRYPTO_PAY_CURRENCY || "").trim().toLowerCase(),
+    successStatuses: String(process.env.CRYPTO_SUCCESS_STATUSES || "finished")
+      .split(",")
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean),
+  };
+}
+
+function publicOrder(order = {}) {
+  return {
+    id: order.id,
+    provider: order.provider || order.channel || "demo",
+    providerInvoiceId: order.providerInvoiceId || "",
+    providerPaymentId: order.providerPaymentId || "",
+    planId: order.planId,
+    amountFen: order.amountFen,
+    credits: order.credits,
+    status: order.status,
+    providerStatus: order.providerStatus || "",
+    paymentUrl: order.paymentUrl || "",
+    checkoutUrl: order.paymentUrl || "",
+    cryptoPrice: order.cryptoPrice || null,
+    createdAt: order.createdAt,
+    paidAt: order.paidAt || null,
+  };
+}
+
+function normalizedHeaders(headers = {}) {
+  const normalized = {};
+  for (const [key, value] of Object.entries(headers || {})) {
+    normalized[String(key).toLowerCase()] = Array.isArray(value) ? value[0] : value;
+  }
+  return normalized;
+}
+
+function requestBaseUrl(headers = {}) {
+  const configured = String(process.env.PUBLIC_SITE_URL || process.env.APP_BASE_URL || "").replace(/\/$/, "");
+  if (configured) return configured;
+  const normalized = normalizedHeaders(headers);
+  const host = normalized.host || `localhost:${PORT}`;
+  const proto = normalized["x-forwarded-proto"] || (String(host).includes("localhost") ? "http" : "https");
+  return `${proto}://${host}`.replace(/\/$/, "");
+}
+
+function sortObjectForSignature(value) {
+  if (Array.isArray(value)) return value.map(sortObjectForSignature);
+  if (!value || typeof value !== "object") return value;
+  return Object.keys(value).sort().reduce((result, key) => {
+    result[key] = sortObjectForSignature(value[key]);
+    return result;
+  }, {});
+}
+
+function verifyNowPaymentsSignature(payload, signature) {
+  const { ipnSecret } = cryptoPaymentConfig();
+  if (!ipnSecret) {
+    const error = new Error("缺少 NOWPAYMENTS_IPN_SECRET，无法验证支付回调。");
+    error.statusCode = 500;
+    throw error;
+  }
+  const expected = crypto
+    .createHmac("sha512", ipnSecret)
+    .update(JSON.stringify(sortObjectForSignature(payload)))
+    .digest("hex");
+  const received = String(signature || "").trim();
+  if (!received || expected.length !== received.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received));
+}
+
+function creditOrder(db, user, order, paidAt = nowIso()) {
+  if (!order || order.status === "paid") return;
+  normalizeUserLedger(user);
+  order.status = "paid";
+  order.paidAt = paidAt;
+  order.updatedAt = paidAt;
+  user.chatCredits = (Number(user.chatCredits) || 0) + Number(order.credits || CREDIT_PACK.credits);
+  user.totalChatPurchased = (Number(user.totalChatPurchased) || 0) + Number(order.credits || CREDIT_PACK.credits);
+  user.totalPaidFen = (Number(user.totalPaidFen) || 0) + Number(order.amountFen || 0);
+  user.updatedAt = paidAt;
+  pushEvent(db, {
+    type: "chat.recharged",
+    userId: user.id,
+    orderId: order.id,
+    provider: order.provider || order.channel,
+    delta: Number(order.credits || CREDIT_PACK.credits),
+    balance: user.chatCredits,
+  });
+}
+
+async function createNowPaymentsInvoice(order, headers = {}) {
+  const config = cryptoPaymentConfig();
+  if (!config.apiKey) {
+    const error = new Error("缺少 NOWPAYMENTS_API_KEY，无法创建加密支付订单。");
+    error.statusCode = 500;
+    throw error;
+  }
+  const baseUrl = requestBaseUrl(headers);
+  const payload = {
+    price_amount: config.priceAmount,
+    price_currency: config.priceCurrency,
+    order_id: order.id,
+    order_description: `命盘师 ${CREDIT_PACK.label} 问事额度`,
+    ipn_callback_url: `${baseUrl}/api/payment-webhook/nowpayments`,
+    success_url: `${baseUrl}/?payment=success&orderId=${encodeURIComponent(order.id)}`,
+    cancel_url: `${baseUrl}/?payment=cancel&orderId=${encodeURIComponent(order.id)}`,
+    is_fixed_rate: true,
+    is_fee_paid_by_user: true,
+  };
+  if (config.payCurrency) payload.pay_currency = config.payCurrency;
+
+  const response = await fetch(`${config.apiBase}/invoice`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": config.apiKey,
+    },
+    body: JSON.stringify(payload),
+  });
+  const text = await response.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch (error) {
+    data = { raw: text };
+  }
+  if (!response.ok) {
+    const error = new Error(`NOWPayments 返回 ${response.status}: ${text.slice(0, 500)}`);
+    error.statusCode = 502;
+    throw error;
+  }
+  return data;
+}
+
+async function rechargeUser(db, user, planId = CREDIT_PACK.id, input = {}, headers = {}) {
   if (planId !== CREDIT_PACK.id) {
     const error = new Error("套餐不存在。");
     error.statusCode = 400;
     throw error;
   }
-  const paidAt = nowIso();
+  const createdAt = nowIso();
+  const mode = paymentMode();
   const order = {
     id: `ord_${crypto.randomUUID()}`,
     userId: user.id,
     planId: CREDIT_PACK.id,
     amountFen: CREDIT_PACK.priceYuan * 100,
     credits: CREDIT_PACK.credits,
-    status: process.env.PAYMENT_MODE === "live" ? "pending" : "paid",
-    createdAt: paidAt,
-    paidAt: process.env.PAYMENT_MODE === "live" ? null : paidAt,
-    channel: process.env.PAYMENT_MODE === "live" ? "wechat_pay" : "demo",
+    status: "pending",
+    createdAt,
+    paidAt: null,
+    channel: mode === "crypto" ? "crypto" : "demo",
+    provider: mode === "crypto" ? cryptoPaymentConfig().provider : "demo",
+    providerStatus: "",
+    providerInvoiceId: "",
+    providerPaymentId: "",
+    paymentUrl: "",
+    cryptoPrice: mode === "crypto" ? {
+      amount: cryptoPaymentConfig().priceAmount,
+      currency: cryptoPaymentConfig().priceCurrency,
+      payCurrency: input.payCurrency || cryptoPaymentConfig().payCurrency || "",
+    } : null,
   };
   db.orders[order.id] = order;
 
-  if (order.status === "paid") {
-    normalizeUserLedger(user);
-    user.chatCredits = (Number(user.chatCredits) || 0) + CREDIT_PACK.credits;
-    user.totalChatPurchased = (Number(user.totalChatPurchased) || 0) + CREDIT_PACK.credits;
-    user.totalPaidFen = (Number(user.totalPaidFen) || 0) + order.amountFen;
-    user.updatedAt = paidAt;
-    pushEvent(db, { type: "chat.recharged", userId: user.id, orderId: order.id, delta: CREDIT_PACK.credits, balance: user.chatCredits });
+  if (mode === "crypto") {
+    const invoice = await createNowPaymentsInvoice(order, headers);
+    order.providerInvoiceId = String(invoice.id || "");
+    order.paymentUrl = invoice.invoice_url || invoice.url || "";
+    order.providerPayload = invoice;
+    order.updatedAt = nowIso();
+    pushEvent(db, { type: "payment.created", userId: user.id, orderId: order.id, provider: order.provider });
+  } else {
+    creditOrder(db, user, order, createdAt);
   }
 
   return order;
@@ -454,6 +641,12 @@ function createConversation(db, user, profile, report, input) {
     title,
     profile,
     report,
+    enhancement: {
+      status: process.env.OPENAI_API_KEY ? "pending" : "unavailable",
+      provider: apiConfig().provider,
+      model: apiConfig().model,
+      updatedAt: createdAt,
+    },
     createdAt,
     updatedAt: createdAt,
     messages: [
@@ -481,7 +674,27 @@ function publicConversation(conversation) {
     title: conversation.title,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
+    enhancement: publicEnhancement(conversation.enhancement),
     messages: (conversation.messages || []).slice(-12),
+  };
+}
+
+function publicEnhancement(enhancement = {}) {
+  return {
+    status: enhancement.status || "pending",
+    provider: enhancement.provider || "",
+    model: enhancement.model || "",
+    updatedAt: enhancement.updatedAt || "",
+    completedAt: enhancement.completedAt || "",
+    message: enhancement.status === "complete"
+      ? "Kimi 深度增强已完成。"
+      : enhancement.status === "processing"
+        ? "Kimi 正在后台增强重点内容。"
+        : enhancement.status === "failed"
+          ? "深度增强暂未完成，基础报告已可使用。"
+          : enhancement.status === "unavailable"
+            ? "当前未配置模型增强。"
+            : "基础报告已生成，等待深度增强。",
   };
 }
 
@@ -1208,10 +1421,11 @@ function compactProfileForPrompt(profile) {
 function buildPrompt(profile) {
   const schema = {
     title: "命盘师 AI 命盘报告",
-    summary: "220-300 字总论，必须点出日主、五行强弱、卦象主题、变爻、星术参照、心理动力和用户关注重点",
+    plainSummary: "4 行以内的阅读前置结论，不要把解释方式当成标题。必须让不懂命理的人一眼看懂：结论是什么、为什么这么看、要注意什么、下一步怎么做。每行先说人话，再少量引用术语",
+    summary: "220-300 字总论。先给结论，再解释日主、五行强弱、卦象、变爻、星术参照、心理动力和用户关注重点；每个术语后必须翻译成现实含义",
     tags: ["6-8 个关键词"],
-    keyPoints: ["6-8 条命盘要点，每条要具体引用结构化资料，并给出对应现实含义"],
-    elementInsight: "五行权重分析，220-300 字，说明最强、最弱、相生相克、心理倾向与补足方向",
+    keyPoints: ["6-8 条命盘要点。每条先说现实含义，再括号补充命盘依据，不要只列术语"],
+    elementInsight: "五行权重分析，220-300 字。必须把木火土金水翻译为现实能力：计划/行动/稳定/规则/流动，并说明最强最弱如何影响选择",
     domainReadings: [
       { key: "career/love/wealth/study/health", label: "中文名称", score: 80, reading: "130-180 字，必须有机会、风险、心理动因和行动建议" },
     ],
@@ -1219,9 +1433,9 @@ function buildPrompt(profile) {
       { year: 2026, theme: "主题", reading: "70-100 字，说明年份节奏、适合做什么、避免什么" },
     ],
     sections: [
-      { title: "命盘总览", body: "180-240 字，解释整体格局与性格底色" },
-      { title: "五行能量", body: "160-220 字，解释能量分布对状态、选择、节奏的影响" },
-      { title: "六爻卦象", body: "180-240 字，解释本卦、变卦、动爻位置、当下阻力和转化方向" },
+      { title: "命盘总览", body: "180-240 字。先说用户当下最该理解的结论，再解释整体格局与性格底色" },
+      { title: "五行能量", body: "160-220 字。不要停留在五行名称，必须翻译成现实能力、状态、选择和节奏" },
+      { title: "六爻卦象", body: "180-240 字。把本卦、变卦、动爻解释成当下处境、变化点和用户能做的动作" },
       { title: "多术数交叉验证", body: "180-260 字，结合 mysticSystems 中八字、六爻/梅花、奇门/紫微、姻缘、风水、塔罗中最相关的 2-4 个体系，用白话说明共同指向和现实检验方式" },
       { title: "星术参照", body: "140-200 字，结合星座侧影说明表达方式、压力反应和节奏建议" },
       { title: "心理动力", body: "200-260 字，用咨询式语言说明核心需要、压力模式、边界和自我提问，不做诊断" },
@@ -1229,7 +1443,7 @@ function buildPrompt(profile) {
       { title: "感情与人际", body: "160-220 字，给出关系模式、沟通盲点、相处建议" },
       { title: "财运与资源", body: "160-220 字，说明收入方式、风险偏好、资源积累建议" },
       { title: "身心与节奏", body: "140-200 字，提醒压力来源与生活节律，不做医疗结论" },
-      { title: "重点问题", body: "围绕用户问题正面回答，260-340 字，必须分命理依据、心理解释、现实行动、前置条件和时间窗口" },
+      { title: "重点问题", body: "围绕用户问题正面回答，260-340 字。第一句必须直接回答用户该怎么看；后面再讲命理依据、心理解释、现实行动、前置条件和时间窗口" },
       { title: "趋吉避凶", body: "160-220 字，给出可执行避坑清单和边界提醒" },
     ],
     advice: ["5-7 条具体行动建议，要能在 7 天或 30 天内执行"],
@@ -1242,6 +1456,8 @@ function buildPrompt(profile) {
     "请基于以下结构化资料包生成产品报告。",
     "要求：回答用户具体问题；不要编造真实外部数据；不要说自己无法算命；保持娱乐边界；输出严格 JSON。",
     "内容要丰富但不空泛，避免只说“稳步观察”“注意沟通”这类泛句。每个模块都要落到用户可以理解和执行的场景。",
+    "不要把“白话总结”当标题卖点；要把所有内容写得像普通人能理解的解释。",
+    "写法固定：先给结论，再说依据，再说行动。术语出现后立刻解释它代表的现实含义。",
     "如果 profile.meta.trueSolarTime.applied 为 true，必须在命盘总览或重点问题里简短说明排盘采用了真太阳时校正，并引用校正后的时间。",
     "如果 profile.mysticSystems 存在，必须输出“多术数交叉验证”章节；只选最相关的体系，不要把所有层逐条罗列。",
     "心理内容只做自我反思、情绪识别、边界澄清和行动建议，不做诊断，不替代心理治疗或线下专业支持。",
@@ -1419,9 +1635,9 @@ function buildChatRequestPayload(config, input) {
   return payload;
 }
 
-async function postModelRequest(config, apiKey, payload) {
+async function postModelRequest(config, apiKey, payload, options = {}) {
   const controller = new AbortController();
-  const timeoutMs = Number(process.env.MODEL_REQUEST_TIMEOUT_MS || 60_000);
+  const timeoutMs = Number(options.timeoutMs || process.env.MODEL_REQUEST_TIMEOUT_MS || 60_000);
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
@@ -1491,6 +1707,57 @@ function softenSensitiveText(text) {
     .replace(/保持身心健康/g, "保持稳定状态");
 }
 
+const ELEMENT_EXPLAIN = {
+  木: {
+    ability: "计划、成长、学习和把事情往前推的弹性",
+    excess: "想法多、标准变动快，容易一边规划一边焦虑",
+    lack: "方向感、持续学习或适应变化的弹性需要补",
+    action: "把目标拆成清单，每周固定复盘一次",
+  },
+  火: {
+    ability: "表达、行动热度、被看见和快速启动的能力",
+    excess: "容易着急、情绪上头，想马上看到结果",
+    lack: "动力、表达欲或主动争取机会的能量需要补",
+    action: "先做一个小的公开行动，比如沟通、投递、展示作品",
+  },
+  土: {
+    ability: "稳定、承接、责任感和把事情落地的能力",
+    excess: "容易背太多责任，想把所有不确定都扛住",
+    lack: "稳定感、生活节奏或长期承接能力需要补",
+    action: "先固定作息、预算和工作边界，让底盘稳下来",
+  },
+  金: {
+    ability: "规则、边界、判断力、复盘和取舍能力",
+    excess: "容易挑剔、紧绷，过度追求标准答案",
+    lack: "边界、复盘、谈判和做取舍的能力需要补",
+    action: "写清楚底线、成本、风险和可接受结果",
+  },
+  水: {
+    ability: "信息流动、观察、沟通、情绪调节和转弯能力",
+    excess: "容易想太多、摇摆，信息越多越难决定",
+    lack: "沟通、信息整合、休息恢复或情绪流动需要补",
+    action: "先减少噪音，找一个可信反馈源做现实校验",
+  },
+  五行: {
+    ability: "你比较容易调动的现实能力",
+    excess: "某种惯性被放大，容易用力过度",
+    lack: "某个现实能力需要补足",
+    action: "把问题拆成一个能验证的小动作",
+  },
+};
+
+function elementExplain(element) {
+  return ELEMENT_EXPLAIN[element] || ELEMENT_EXPLAIN.五行;
+}
+
+function elementPlainLine(item = {}, mode = "ability") {
+  const element = item.element || "五行";
+  const percent = Number(item.percent || 0);
+  const detail = elementExplain(element);
+  const suffix = percent ? `（${percent}%）` : "";
+  return `${element}${suffix}代表${detail[mode] || detail.ability}`;
+}
+
 function reportContext(profile) {
   const user = profile.user || {};
   const pillars = profile.pillars || {};
@@ -1506,6 +1773,25 @@ function reportContext(profile) {
   const firstFlow = profile.annualFlow?.[0] || {};
   const trueSolarTime = profile.meta?.trueSolarTime || {};
   return { user, pillars, elements, strongest, weakest, primary, changed, sixYao, psychology, stellar, mysticSystems, firstFlow, trueSolarTime };
+}
+
+function buildPlainSummary(profile = {}) {
+  const { user, pillars, strongest, weakest, primary, changed, sixYao, psychology, firstFlow, trueSolarTime } = reportContext(profile);
+  const focus = user.focusLabel || "当前问题";
+  const question = user.question ? `你问的“${user.question}”` : focus;
+  const dayMaster = pillars.dayMaster || pillars.day?.stem || "";
+  const strongText = elementPlainLine(strongest, "ability");
+  const weakText = elementPlainLine(weakest, "lack");
+  const weakAction = elementExplain(weakest.element).action;
+  const hexagram = primary.name && changed.name ? `${primary.name}变${changed.name}` : (sixYao.movement || "卦象变化");
+  const flow = firstFlow.year ? `${firstFlow.year}年适合分阶段验证` : "近期适合先小步验证";
+  const solar = trueSolarTime.applied ? `本盘已按${trueSolarTime.place?.name || "出生地"}真太阳时校正。` : "";
+  return [
+    `结论：这件事先别急着定输赢，更适合稳住节奏后小步推进。${dayMaster ? `命盘里${dayMaster}日主只是底色，不是最终答案。` : ""}`,
+    `为什么：${strongText}；${weakText}。简单说，你有能用的优势，也有需要刻意补的短板。`,
+    `注意：${question}最容易被${psychology.stressPattern || "不确定感和急于求结果"}带偏，别在情绪很满时立刻拍板。`,
+    `下一步：${flow}，先做一个能拿到反馈的小动作；${weakAction}。${hexagram ? `卦象提示变化点在“先试再调”。` : ""}${solar}`,
+  ].map((line) => line.trim()).filter(Boolean).join("\n");
 }
 
 function mysticSynthesisText(profile) {
@@ -1546,10 +1832,12 @@ function sectionFallback(profile, title, existing = "") {
   const solarNote = trueSolarTime.applied
     ? `本次以${trueSolarTime.place?.name || "出生地"}真太阳时 ${trueSolarTime.correctedTime} 起盘，较填写时间${formatOffset(trueSolarTime.offsetMinutesExact)}。`
     : "";
+  const strongestPlain = elementPlainLine(strongest, "ability");
+  const weakestPlain = elementPlainLine(weakest, "lack");
   const templates = {
-    命盘总览: `${solarNote}${user.name || "你"}的日主为${dayMaster}，命盘里${strongest.element}能量较突出，${weakest.element}相对需要补足。整体更适合先建立清晰规则、稳定输出和可见成果，再去争取外部机会。${primary.name || "本卦"}的主题提示你不要只看一时起伏，而要观察长期互动、资源流向和自身节奏；${sixYao.movement || "变爻"}则说明当下有一个可被调整的关键节点。`,
-    五行能量: `五行分布显示${strongest.element}偏强，代表你的优势会通过相关特质被放大；${weakest.element}偏弱，则是容易感到卡顿的地方。心理层面，强势能量对应${psychology.coreNeed || "核心需要"}，弱势能量容易表现为${psychology.stressPattern || "压力下失去节奏"}。补足方向不是迷信某个颜色或物件，而是把对应的现实能力补上，例如秩序、行动、表达、资源整合或休息恢复。`,
-    六爻卦象: `${sixYao.movement || `${primary.name || "本卦"}之${changed.name || "变卦"}`}，动在${sixYao.lineName || "动爻"}，主题落在${sixYao.lineTheme || "变化位置"}。本卦看${sixYao.primaryFocus || primary.trigram?.meaning || "当下格局"}，变卦看${sixYao.changedFocus || changed.trigram?.meaning || "后续走向"}。这表示你的问题不能只求一个“成或不成”的答案，而要拆成起因、关系、行动、环境、选择和收束六层；其中${strongest.element}是可主动使用的力量，${weakest.element}是需要补足的资源。`,
+    命盘总览: `${solarNote}这份命盘最核心的意思是：你不是没有机会，而是要先把节奏、边界和可验证的成果做出来。${dayMaster}日主代表你的底色，${strongestPlain}；${weakestPlain}。${primary.name || "本卦"}到${changed.name || "变卦"}的提示，用人话说就是局面会变，但变化来自你怎么沟通、怎么准备、怎么收束，而不是等一个绝对答案。`,
+    五行能量: `五行不是神秘标签，而是在说你处理事情时哪些能力容易出来、哪些能力要刻意补。当前${strongestPlain}，这是优势；但${weakestPlain}，这是短板。心理上，优势会让你更想用熟悉方式解决问题，短板则容易表现为${psychology.stressPattern || "压力下急着要答案或失去节奏"}。补足方向不是迷信颜色或物件，而是补现实能力：${elementExplain(weakest.element).action}。`,
+    六爻卦象: `${sixYao.movement || `${primary.name || "本卦"}之${changed.name || "变卦"}`}，如果翻译成人话，就是“现在的局面不是固定的，中间有一个能被你推动的变化点”。动在${sixYao.lineName || "动爻"}，主题落在${sixYao.lineTheme || "变化位置"}，说明你不要只问“成不成”，而要先看哪一步能改变反馈。建议把问题拆成：我能做什么、对方/环境能回应什么、下一次反馈看什么。`,
     多术数交叉验证: mysticSynthesisText(profile),
     星术参照: `${stellar.sign || profile.western?.sign || "星术参照"}带来的侧影是${stellar.gift || "观察力与适应力"}，压力下可能${stellar.shadow || "节奏不稳"}。它不决定命运，但能帮助你理解自己的表达方式和压力反应。放在${user.focusLabel || "当前重点"}里，建议采用“${stellar.practice || "先稳定节奏，再做选择"}”的策略，让星术参照服务于现实行动。`,
     心理动力: `从咨询式自我反思看，你当前更深的需要可能是${psychology.coreNeed || "安全感、价值感或方向感"}，压力模式容易表现为${psychology.stressPattern || "把不确定感放大"}。建议使用“触发事件-自动想法-情绪强度-身体感受-可选择行动”的链路复盘，不急着给自己贴标签。边界上，要区分你能控制的行动、你能协商的关系、以及你需要允许其不确定的结果。可以问自己：${psychology.reflectionQuestion || "我真正想守住的价值是什么？"}`,
@@ -1557,7 +1845,7 @@ function sectionFallback(profile, title, existing = "") {
     感情与人际: `关系里要少猜测，多看稳定回应。${primary.name || "卦象"}强调互动的持续性，${changed.name || "变卦"}则提醒变化会来自沟通方式和边界。心理上要把“我感到不安”和“对方一定如何”分开，先表达自己的需要，再观察对方是否愿意共同承担关系成本。适合主动表达真实需求，但不宜用情绪压迫对方给出立刻承诺。`,
     财运与资源: `财运部分更偏向“资源管理”而不是突发暴富。适合通过专业能力、长期客户、稳定项目或副业试水积累收入。心理风险在于用消费、冲动投资或过度承诺来缓解焦虑；现实风险在于高估短期收益、低估时间成本。建议先做预算边界，再把小规模尝试变成可复盘数据。`,
     身心与节奏: `身心状态与节奏直接影响判断力。${weakest.element}较弱时，容易在疲惫、焦虑或信息过载时做决定。建议把休息、运动、饮食和工作边界当作基础配置，并用${psychology.regulation || "稳定节奏"}作为日常调节方向；涉及身体问题请以专业医疗意见为准。`,
-    重点问题: `针对你的问题“${user.question || "最近整体运势如何"}”，命理上看${primary.name || "本卦"}到${changed.name || "变卦"}，说明局面不是固定结论，而是会随行动和沟通方式改变。心理上，你需要分清自己是在追求${psychology.coreNeed || "真实价值"}，还是在躲避${psychology.stressPattern || "不确定感"}。行动上，适合推进的前置条件是目标明确、资源清楚、替代方案存在、关键沟通有记录；不适合在情绪高点或外界催促下立刻拍板。${firstFlow.year ? `${firstFlow.year} 年主题为${firstFlow.theme}，` : ""}宜把机会拆成阶段验证。`,
+    重点问题: `针对你的问题“${user.question || "最近整体运势如何"}”，先给结论：不要直接用“好/不好、成/不成”来判断，更适合先做小步验证。命理上看${primary.name || "本卦"}到${changed.name || "变卦"}，意思是局面会随行动和沟通改变；心理上，你需要分清自己是在追求${psychology.coreNeed || "真实价值"}，还是在躲避${psychology.stressPattern || "不确定感"}。现实上，适合推进的条件是目标明确、资源清楚、替代方案存在、关键沟通有记录；不适合在情绪高点或被别人催促时立刻拍板。${firstFlow.year ? `${firstFlow.year} 年主题为${firstFlow.theme}，` : ""}可以把机会拆成 7 天或 30 天的小测试。`,
     趋吉避凶: `趋吉避凶的关键，是把命盘提示转化为现实动作：强项要形成稳定输出，弱项要补足机制；重要决定要留缓冲期；涉及金钱、健康和长期关系时，不把单次解读当成依据。每次行动前可自问：我现在的选择来自事实、价值，还是来自焦虑？我能做的最小验证是什么？用报告做自我复盘，会比追求绝对答案更有价值。`,
   };
   const expansions = {
@@ -1613,13 +1901,18 @@ function normalizeReport(report, profile) {
 
   normalized.summary = ensureRichText(normalized.summary, [
     trueSolarTime.applied ? `本次采用真太阳时校正：${trueSolarTime.place?.name || "出生地"} ${trueSolarTime.correctedTime}，较填写时间${formatOffset(trueSolarTime.offsetMinutesExact)}。` : "",
-    `${user.name || "你"}的日主为${pillars.dayMaster || "日主"}，五行里${strongest.element}较强、${weakest.element}较弱，说明优势与短板都比较清晰。`,
-    `${sixYao.movement || `${primary.name || "本卦"}到${changed.name || "变卦"}`}提示事情不是一锤定音，更适合用阶段验证、稳定输出和复盘来推动。`,
-    mysticSystems.version ? `多术数层会把八字、六爻/梅花、奇门、姻缘、风水和塔罗当作不同角度交叉验证：共同指向才放大，冲突之处用现实证据复核。` : "",
+    `这份报告的核心不是告诉你“命定如此”，而是帮你看清：哪些能力现在能用，哪些地方容易卡住，下一步该怎么验证。`,
+    `${user.name || "你"}的日主为${pillars.dayMaster || "日主"}，这是命盘底色；${elementPlainLine(strongest, "ability")}，${elementPlainLine(weakest, "lack")}。`,
+    `${sixYao.movement || `${primary.name || "本卦"}到${changed.name || "变卦"}`}的意思是事情不是一锤定音，更适合用阶段验证、稳定输出和复盘来推动。`,
+    mysticSystems.version ? `八字、六爻/梅花、奇门、姻缘、风水和塔罗只是不同观察角度：共同指向才放大，冲突之处要用现实证据复核。` : "",
     `星术参照为${stellar.sign || profile.western?.sign || "未定"}，心理动力重点是${psychology.coreNeed || "辨认真实需要"}；围绕${user.focusLabel || "整体格局"}，建议把想法落到具体行动、情绪复盘与现实反馈上。`,
-    `${sixYao.lineTheme ? `动爻落在${sixYao.lineTheme}，` : ""}意味着你现在最该处理的不是抽象运气，而是某个可以被看见、被沟通、被验证的现实环节。`,
+    `${sixYao.lineTheme ? `动爻落在${sixYao.lineTheme}，` : ""}翻译成现实语言，就是你现在最该处理的不是抽象运气，而是某个可以被看见、被沟通、被验证的环节。`,
     `如果问题涉及选择，先把“我想要什么”“我害怕什么”“我能做什么”分开写清楚，再用 7 天内的小行动测试局面的真实反馈。`,
   ], 220);
+
+  normalized.plainSummary = ensureRichText(normalized.plainSummary, [
+    buildPlainSummary(profile),
+  ], 80);
 
   normalized.tags = uniqueItems([
     ...(normalized.tags || []),
@@ -1639,10 +1932,10 @@ function normalizeReport(report, profile) {
 
   normalized.keyPoints = uniqueItems([
     ...(normalized.keyPoints || []),
-    `日主${pillars.dayMaster || "--"}，年柱${pillars.year?.name || "--"}、月柱${pillars.month?.name || "--"}、日柱${pillars.day?.name || "--"}、时柱${pillars.hour?.name || "未知"}，适合从结构而不是单点判断。`,
-    `五行最强为${strongest.element}（${strongest.percent || 0}%），最弱为${weakest.element}（${weakest.percent || 0}%），强项宜输出，弱项宜建立补足机制。`,
-    `本卦${primary.name || "--"}、变卦${changed.name || "--"}，提示当前主题既有稳定面，也有需要调整的变量。`,
-    sixYao.movement ? `${sixYao.movement}，动爻主题是${sixYao.lineTheme || "变化位置"}，适合从这一层找突破口。` : "",
+    `先看结构，不要只看单点：年柱${pillars.year?.name || "--"}、月柱${pillars.month?.name || "--"}、日柱${pillars.day?.name || "--"}、时柱${pillars.hour?.name || "未知"}共同决定节奏。`,
+    `你的可用优势是：${elementPlainLine(strongest, "ability")}；需要补的短板是：${elementPlainLine(weakest, "lack")}。`,
+    `本卦${primary.name || "--"}、变卦${changed.name || "--"}，翻译成现实语言就是：局面有稳定面，也有能被行动改变的变量。`,
+    sixYao.movement ? `${sixYao.movement}，动爻主题是${sixYao.lineTheme || "变化位置"}，这通常是最适合先处理的现实突破口。` : "",
     mysticSystems.crossChecks?.[0] || "",
     mysticLayers.qimen?.plain ? `奇门问事层显示：${mysticLayers.qimen.plain}` : "",
     mysticLayers.yinyuan?.active && mysticLayers.yinyuan?.plain ? `姻缘关系层显示：${mysticLayers.yinyuan.plain}` : "",
@@ -1653,9 +1946,9 @@ function normalizeReport(report, profile) {
   ]).slice(0, 8);
 
   normalized.elementInsight = ensureRichText(normalized.elementInsight, [
-    `当前五行排序为${(profile.elements || []).map((item) => `${item.element}${item.percent}%`).join("、")}。${strongest.element}旺代表优势较容易被放大，但也可能带来用力过度；${weakest.element}弱则是节奏、资源或表达上需要刻意补足的部分。`,
-    `心理层面，${strongest.element}旺对应${psychology.coreNeed || "明确的内在需要"}，${weakest.element}弱容易带来${psychology.stressPattern || "压力反应"}。`,
-    `建议把补五行理解为补现实能力：缺秩序就建立流程，缺行动就设定期限，缺表达就练习沟通，缺休息就恢复体力。`,
+    `当前五行排序为${(profile.elements || []).map((item) => `${item.element}${item.percent}%`).join("、")}。这组数字不用神秘化，它是在说你的能力分布。`,
+    `${elementPlainLine(strongest, "ability")}，这是你比较容易拿出来用的部分；${elementPlainLine(weakest, "lack")}，这是容易拖慢判断和行动的地方。`,
+    `心理层面，优势会对应${psychology.coreNeed || "明确的内在需要"}，短板容易带来${psychology.stressPattern || "压力反应"}。建议把补五行理解为补现实能力：${elementExplain(weakest.element).action}。`,
   ], 220);
 
   const aiDomains = new Map((normalized.domainReadings || []).map((item) => [item.key, item]));
@@ -1753,6 +2046,181 @@ async function callOpenAI(profile) {
   };
 }
 
+function buildReportEnhancementPrompt({ profile, report }) {
+  const sections = new Map((report.sections || []).map((item) => [item.title, item.body]));
+  const schema = {
+    plainSummary: "4 行以内阅读前置结论，不要把解释方式当成标题。每行都让普通用户能直接懂：结论、原因、风险、下一步",
+    summary: "120-180 字，先说人话结论，再少量解释命盘依据；不要重复完整报告",
+    sections: [
+      { title: "多术数交叉验证", body: "180-240 字，只选最相关 2-4 个体系。每个体系都要翻译成现实含义，并说明用户可以如何验证" },
+      { title: "重点问题", body: "220-300 字，第一句直接回答用户原问题；后面用自然段解释命理依据、心理动力、现实行动" },
+    ],
+    advice: ["3-5 条 7 天内可执行建议"],
+    counselingPrompts: ["2-3 个自我提问"],
+  };
+  return [
+    "请基于资料包增强已有报告的关键内容。",
+    "只输出 JSON，字段必须符合 outputSchema。",
+    "不要重写全部章节，不要输出长篇总报告。",
+    "",
+    JSON.stringify({
+      profile: compactProfileForPrompt(profile),
+      currentReport: {
+        plainSummary: report.plainSummary,
+        summary: report.summary,
+        keyPoints: (report.keyPoints || []).slice(0, 6),
+        crossCheck: sections.get("多术数交叉验证") || "",
+        focusQuestion: sections.get("重点问题") || "",
+        advice: (report.advice || []).slice(0, 5),
+      },
+      outputSchema: schema,
+    }),
+  ].join("\n");
+}
+
+function buildReportEnhancementPayload(config, input, forcePlainText = false) {
+  const userPrompt = buildReportEnhancementPrompt(input);
+  const maxTokens = Number(process.env.OPENAI_ENHANCEMENT_MAX_TOKENS || 1400);
+  if (config.style === "chat") {
+    const payload = {
+      model: config.model,
+      messages: [
+        { role: "system", content: REPORT_ENHANCEMENT_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
+      max_tokens: maxTokens,
+    };
+    const isKimiK2 = config.provider === "Kimi" && /^kimi-k2\.(5|6)/.test(config.model);
+    if (isKimiK2) {
+      payload.thinking = { type: process.env.KIMI_THINKING || "disabled" };
+    } else {
+      payload.temperature = Number(process.env.MODEL_TEMPERATURE || 0.68);
+    }
+    if (!forcePlainText && (process.env.MODEL_RESPONSE_FORMAT || "json").toLowerCase() === "json") {
+      payload.response_format = { type: "json_object" };
+    }
+    return payload;
+  }
+
+  const payload = {
+    model: config.model,
+    input: [
+      { role: "system", content: REPORT_ENHANCEMENT_PROMPT },
+      { role: "user", content: userPrompt },
+    ],
+    max_output_tokens: maxTokens,
+  };
+  const effort = process.env.OPENAI_REASONING_EFFORT || "low";
+  if (/^gpt-5/i.test(config.model) && effort !== "none") {
+    payload.reasoning = { effort };
+  }
+  return payload;
+}
+
+function parseJsonObjectText(text) {
+  const cleaned = String(text || "").replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (error) {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) return JSON.parse(match[0]);
+    throw error;
+  }
+}
+
+function normalizeEnhancementResult(value = {}) {
+  const sections = Array.isArray(value.sections) ? value.sections : [];
+  return {
+    plainSummary: String(value.plainSummary || "").trim().slice(0, 420),
+    summary: String(value.summary || "").trim().slice(0, 520),
+    sections: sections
+      .map((item) => ({
+        title: String(item.title || "").trim().slice(0, 40),
+        body: String(item.body || "").trim().slice(0, 900),
+      }))
+      .filter((item) => item.title && item.body)
+      .slice(0, 4),
+    advice: (Array.isArray(value.advice) ? value.advice : [])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .slice(0, 5),
+    counselingPrompts: (Array.isArray(value.counselingPrompts) ? value.counselingPrompts : [])
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .slice(0, 4),
+  };
+}
+
+function mergeReportEnhancement(report, profile, enhancement) {
+  const next = normalizeReport({ ...(report || {}) }, profile);
+  if (enhancement.plainSummary) next.plainSummary = ensureRichText(enhancement.plainSummary, [next.plainSummary], 80);
+  if (enhancement.summary) next.summary = ensureRichText(enhancement.summary, [next.summary], 180);
+  if (enhancement.advice?.length) next.advice = uniqueItems([...enhancement.advice, ...(next.advice || [])]).slice(0, 7);
+  if (enhancement.counselingPrompts?.length) {
+    next.counselingPrompts = uniqueItems([...enhancement.counselingPrompts, ...(next.counselingPrompts || [])]).slice(0, 5);
+  }
+  const byTitle = new Map((next.sections || []).map((item) => [item.title, { ...item }]));
+  for (const section of enhancement.sections || []) {
+    const existing = byTitle.get(section.title);
+    byTitle.set(section.title, {
+      title: section.title,
+      body: ensureRichText(section.body, [existing?.body || ""], section.title === "重点问题" ? 240 : 190),
+    });
+  }
+  next.sections = (next.sections || []).map((item) => byTitle.get(item.title) || item);
+  for (const [title, section] of byTitle.entries()) {
+    if (!(next.sections || []).some((item) => item.title === title)) next.sections.push(section);
+  }
+  next.tags = uniqueItems([...(next.tags || []), "Kimi增强"]).slice(0, 8);
+  return normalizeReport(next, profile);
+}
+
+async function callReportEnhancementAI({ profile, report }) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    const error = new Error("缺少 OPENAI_API_KEY，无法执行报告增强。");
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const config = apiConfig();
+  let payload = buildReportEnhancementPayload(config, { profile, report });
+  let response = await postModelRequest(config, apiKey, payload, {
+    timeoutMs: Number(process.env.MODEL_ENHANCEMENT_TIMEOUT_MS || 45_000),
+  });
+  let bodyText = await response.text();
+
+  if (!response.ok && config.style === "chat" && payload.response_format && /response_format|json_object/i.test(bodyText)) {
+    payload = buildReportEnhancementPayload(config, { profile, report }, true);
+    response = await postModelRequest(config, apiKey, payload, {
+      timeoutMs: Number(process.env.MODEL_ENHANCEMENT_TIMEOUT_MS || 45_000),
+    });
+    bodyText = await response.text();
+  }
+
+  if (!response.ok) {
+    const error = new Error(`${config.provider} API 返回 ${response.status}: ${bodyText.slice(0, 600)}`);
+    error.statusCode = 502;
+    throw error;
+  }
+
+  const data = JSON.parse(bodyText);
+  const outputText = extractOutputText(data);
+  if (!outputText) {
+    const error = new Error(`${config.provider} API 返回为空，无法提取增强内容。`);
+    error.statusCode = 502;
+    throw error;
+  }
+
+  return {
+    model: config.model,
+    provider: config.provider,
+    endpointLabel: config.endpointLabel,
+    rawResponseId: data.id || null,
+    enhancement: normalizeEnhancementResult(parseJsonObjectText(outputText)),
+  };
+}
+
 function localReportResult(profile, error) {
   return {
     model: "mingpanshi-report-engine",
@@ -1847,11 +2315,7 @@ async function handleApiOperation({ method, pathname, input = {}, headers = {}, 
         provider: config.provider,
         endpoint: config.endpointLabel,
         apiStyle: config.style,
-        billing: {
-          plan: CREDIT_PACK,
-          readingUnlock: "分享给朋友或朋友圈可免费解锁 1 次 AI 命盘测算",
-          chatUnitCost: "每次对话追问消耗 1 次额度",
-        },
+        billing: publicBilling(),
       },
     };
   }
@@ -1869,12 +2333,74 @@ async function handleApiOperation({ method, pathname, input = {}, headers = {}, 
   if (pathname === "/api/recharge" && method === "POST") {
     const db = normalizeDb(await store.readDb());
     const user = getOrCreateUser(db, input.clientId);
-    const order = rechargeUser(db, user, input.planId || CREDIT_PACK.id);
+    const order = await rechargeUser(db, user, input.planId || CREDIT_PACK.id, input, headers);
     await store.writeDb(db);
     return {
-      status: 200,
-      payload: { ok: true, order, account: publicAccount(user), plan: CREDIT_PACK },
+      status: order.status === "pending" ? 202 : 200,
+      payload: { ok: true, order: publicOrder(order), account: publicAccount(user), billing: publicBilling(), plan: CREDIT_PACK },
     };
+  }
+
+  if (pathname === "/api/order" && method === "GET") {
+    const db = normalizeDb(await store.readDb());
+    const user = getOrCreateUser(db, query.clientId || input.clientId);
+    const order = db.orders[String(query.orderId || input.orderId || "")];
+    if (!order || order.userId !== user.id) {
+      return { status: 404, payload: { ok: false, message: "订单不存在。" } };
+    }
+    return {
+      status: 200,
+      payload: { ok: true, order: publicOrder(order), account: publicAccount(user), billing: publicBilling(), plan: CREDIT_PACK },
+    };
+  }
+
+  if (pathname === "/api/payment-webhook/nowpayments" && method === "POST") {
+    const normalized = normalizedHeaders(headers);
+    if (!verifyNowPaymentsSignature(input, normalized["x-nowpayments-sig"])) {
+      return { status: 401, payload: { ok: false, message: "Invalid payment signature" } };
+    }
+
+    const db = normalizeDb(await store.readDb());
+    const orderId = String(input.order_id || "").trim();
+    let order = orderId ? db.orders[orderId] : null;
+    if (!order) {
+      order = Object.values(db.orders || {}).find((item) => (
+        String(item.providerInvoiceId || "") === String(input.invoice_id || "")
+        || String(item.providerPaymentId || "") === String(input.payment_id || "")
+      ));
+    }
+    if (!order) {
+      pushEvent(db, { type: "payment.webhook.unmatched", provider: "nowpayments", payload: input });
+      await store.writeDb(db);
+      return { status: 200, payload: { ok: true, matched: false } };
+    }
+
+    const user = db.users[order.userId];
+    if (!user) {
+      pushEvent(db, { type: "payment.webhook.user_missing", provider: "nowpayments", orderId: order.id, payload: input });
+      await store.writeDb(db);
+      return { status: 200, payload: { ok: true, matched: true, credited: false } };
+    }
+
+    const status = String(input.payment_status || input.invoice_status || "").toLowerCase();
+    order.providerStatus = status;
+    order.providerPaymentId = String(input.payment_id || order.providerPaymentId || "");
+    order.providerInvoiceId = String(input.invoice_id || order.providerInvoiceId || "");
+    order.providerPayload = input;
+    order.updatedAt = nowIso();
+
+    let credited = false;
+    if (cryptoPaymentConfig().successStatuses.includes(status)) {
+      const wasPaid = order.status === "paid";
+      creditOrder(db, user, order, nowIso());
+      credited = !wasPaid;
+    } else if (["failed", "expired", "cancelled", "refunded"].includes(status)) {
+      order.status = status;
+    }
+
+    pushEvent(db, { type: "payment.webhook", provider: "nowpayments", orderId: order.id, providerStatus: status, credited });
+    await store.writeDb(db);
+    return { status: 200, payload: { ok: true, matched: true, credited } };
   }
 
   if (pathname === "/api/share-unlock" && method === "POST") {
@@ -1901,12 +2427,7 @@ async function handleApiOperation({ method, pathname, input = {}, headers = {}, 
     ensureReadingUnlock(user);
 
     const profile = buildFortuneProfile(input);
-    let ai;
-    try {
-      ai = await callOpenAI(profile);
-    } catch (error) {
-      ai = localReportResult(profile, error);
-    }
+    const ai = localReportResult(profile);
     const conversation = createConversation(db, user, profile, ai.report, input);
     deductReadingUnlock(db, user, conversation.id);
     await store.writeDb(db);
@@ -1919,6 +2440,7 @@ async function handleApiOperation({ method, pathname, input = {}, headers = {}, 
         provider: ai.provider,
         endpoint: ai.endpointLabel,
         responseId: ai.rawResponseId,
+        enhancement: publicEnhancement(conversation.enhancement),
         profile,
         report: ai.report,
         conversationId: conversation.id,
@@ -1926,6 +2448,114 @@ async function handleApiOperation({ method, pathname, input = {}, headers = {}, 
         account: publicAccount(user),
       },
     };
+  }
+
+  if (pathname === "/api/reading-enhancement" && method === "POST") {
+    if (!hasApiAccessFromHeaders(headers)) {
+      return {
+        status: 401,
+        payload: { ok: false, code: "ACCESS_REQUIRED", message: "请输入正确访问码后再增强报告。" },
+      };
+    }
+
+    let db = normalizeDb(await store.readDb());
+    let user = getOrCreateUser(db, input.clientId);
+    let conversation = getConversationForUser(db, user, input.conversationId);
+
+    if (conversation.enhancement?.status === "complete" && !input.retry) {
+      return {
+        status: 200,
+        payload: {
+          ok: true,
+          enhancement: publicEnhancement(conversation.enhancement),
+          profile: conversation.profile,
+          report: conversation.report,
+          conversationId: conversation.id,
+          conversation: publicConversation(conversation),
+          account: publicAccount(user),
+        },
+      };
+    }
+
+    const startedAt = nowIso();
+    conversation.enhancement = {
+      ...(conversation.enhancement || {}),
+      status: "processing",
+      provider: apiConfig().provider,
+      model: apiConfig().model,
+      updatedAt: startedAt,
+    };
+    conversation.updatedAt = startedAt;
+    pushEvent(db, { type: "reading.enhancement.started", userId: user.id, refId: conversation.id });
+    await store.writeDb(db);
+
+    try {
+      const ai = await callReportEnhancementAI({
+        profile: conversation.profile,
+        report: conversation.report,
+      });
+      db = normalizeDb(await store.readDb());
+      user = getOrCreateUser(db, input.clientId);
+      conversation = getConversationForUser(db, user, input.conversationId);
+      conversation.report = mergeReportEnhancement(conversation.report, conversation.profile, ai.enhancement);
+      const completedAt = nowIso();
+      conversation.enhancement = {
+        status: "complete",
+        provider: ai.provider,
+        model: ai.model,
+        endpoint: ai.endpointLabel,
+        responseId: ai.rawResponseId,
+        updatedAt: completedAt,
+        completedAt,
+      };
+      conversation.updatedAt = completedAt;
+      pushEvent(db, { type: "reading.enhancement.completed", userId: user.id, refId: conversation.id, responseId: ai.rawResponseId });
+      await store.writeDb(db);
+      return {
+        status: 200,
+        payload: {
+          ok: true,
+          enhancement: publicEnhancement(conversation.enhancement),
+          model: ai.model,
+          provider: ai.provider,
+          endpoint: ai.endpointLabel,
+          responseId: ai.rawResponseId,
+          profile: conversation.profile,
+          report: conversation.report,
+          conversationId: conversation.id,
+          conversation: publicConversation(conversation),
+          account: publicAccount(user),
+        },
+      };
+    } catch (error) {
+      db = normalizeDb(await store.readDb());
+      user = getOrCreateUser(db, input.clientId);
+      conversation = getConversationForUser(db, user, input.conversationId);
+      const failedAt = nowIso();
+      conversation.enhancement = {
+        ...(conversation.enhancement || {}),
+        status: "failed",
+        provider: apiConfig().provider,
+        model: apiConfig().model,
+        updatedAt: failedAt,
+        failedAt,
+      };
+      conversation.updatedAt = failedAt;
+      pushEvent(db, { type: "reading.enhancement.failed", userId: user.id, refId: conversation.id, reason: error?.message || "enhancement_failed" });
+      await store.writeDb(db);
+      return {
+        status: 200,
+        payload: {
+          ok: true,
+          enhancement: publicEnhancement(conversation.enhancement),
+          profile: conversation.profile,
+          report: conversation.report,
+          conversationId: conversation.id,
+          conversation: publicConversation(conversation),
+          account: publicAccount(user),
+        },
+      };
+    }
   }
 
   if (pathname === "/api/chat" && method === "POST") {
