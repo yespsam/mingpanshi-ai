@@ -38,7 +38,7 @@ http://localhost:8787
 线上地址：
 
 ```text
-https://mingpanshi-ai.netlify.app
+https://mingpanshi-ai.pages.dev
 ```
 
 浏览器不会直接接触 `OPENAI_API_KEY`，所有模型 API 调用都在 `server.js` 后端完成。
@@ -47,13 +47,13 @@ https://mingpanshi-ai.netlify.app
 
 - 命盘师品牌 UI、Logo 与轻奢周易视觉
 - 后端支持 Kimi / OpenAI 兼容模型 API
-- 服务端额度账户、订单记录、对话记录，本地使用 `.data/mingpanshi-db.json`，线上使用 Netlify Blobs
+- 当前网页测试期免费开放，线上使用 Cloudflare Pages + Pages Functions + KV
+- VPS 部署模板已提供：`Dockerfile`、`docker-compose.yml`、`deploy/Caddyfile.example`、`deploy/mingpanshi.service.example`
 - 天干地支、生肖、星座、五行权重、八卦、六十四卦、六爻变爻、流年提示
 - 根据问题自动判断关注重点：事业、感情、财运、学习、身心状态
 - 输出命盘总览、五行分析、六爻卦象、星术参照、心理动力、领域评分、5 年流年提示、行动建议、幸运提示
 - 支持复制 / 保存报告、报告后继续追问；追问按顾问式结构回复：接住问题、命理依据、心理动力、现实行动、自我提问
-- 测算规则：分享给好友或朋友圈，免费解锁 1 次 AI 命盘测算
-- 对话规则：5 元购买 10 次对话额度，每轮 AI 追问回复消耗 1 次
+- 当前规则：网页测试期免费生成命盘，免费继续追问
 - 模型响应较慢或失败时，会先返回命盘师结构化兜底报告，避免用户一直等待空白
 - 营销说明区默认隐藏，用户点击报告示例、定价说明等入口后再展开
 
@@ -67,7 +67,30 @@ https://mingpanshi-ai.netlify.app
 - `OPENAI_MAX_OUTPUT_TOKENS`：报告输出上限，默认 `4200`
 - `OPENAI_CHAT_MAX_TOKENS`：追问回复输出上限，默认 `1800`
 - `MODEL_REQUEST_TIMEOUT_MS`：模型等待时间，默认约 `60000`，Kimi 建议保留 60 秒左右；超时后使用结构化兜底报告
+- `PRODUCT_ACCESS_MODE`：默认 `free`，当前网页不向用户收费
 - `PORT`：默认 `8787`
+
+## 服务器和域名
+
+当前推荐先用 Cloudflare Pages 绑定自定义域名；如果后续需要独立服务器，再购买支持加密货币付款的 VPS。
+
+域名和服务器采购说明见：
+
+```text
+docs/crypto-domain-server.md
+```
+
+Docker 运行：
+
+```bash
+docker compose up -d --build
+```
+
+Ubuntu VPS 快速准备：
+
+```bash
+DOMAIN=你的域名 bash deploy/vps-ubuntu-setup.sh
+```
 
 ## 命令行旧版
 

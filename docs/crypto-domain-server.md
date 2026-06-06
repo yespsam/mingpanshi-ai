@@ -23,9 +23,35 @@ Cloudflare Pages 项目：mingpanshi-ai
 
 Cloudflare Pages 现在可以继续作为免费公网 H5 入口使用。它适合测试、演示和小程序 H5 容器验证。
 
+## 这次要增加什么
+
+建议分两步：
+
+1. 先购买域名，把域名绑定到现有 Cloudflare Pages。这样最快获得正式域名，仍然不用维护服务器。
+2. 再购买支持加密货币付款的 VPS，作为未来独立后端或主站服务器。
+
+当前我已经给项目补好了 VPS 部署模板：
+
+```text
+Dockerfile
+docker-compose.yml
+deploy/Caddyfile.example
+deploy/mingpanshi.service.example
+deploy/vps-ubuntu-setup.sh
+```
+
+买好 VPS 后，可以直接用这些文件上线 Node 版本。
+
 ## 重要提醒
 
 Cloudflare 本身通常不适合作为“加密货币付款购买域名/服务器”的供应商，因为 Cloudflare 账单主要走传统支付方式。若要用加密货币付款，需要选择支持 BTC/USDT/USDC 等付款方式的域名商和服务器商。
+
+Cloudflare 仍然适合做：
+
+- DNS 解析。
+- Cloudflare Pages 自定义域名。
+- 免费 HTTPS。
+- CDN 和基础防护。
 
 ## 采购方案
 
@@ -119,6 +145,69 @@ Cloudflare 本身通常不适合作为“加密货币付款购买域名/服务�
 4. 当前 H5 先绑定到 Cloudflare Pages 自定义域名。
 5. 如果后续需要独立服务器，再购买支持 crypto 的 VPS。
 6. VPS 上部署 Node 服务，并把 API 域名切过去。
+
+## Cloudflare Pages 绑定域名
+
+当前 Cloudflare 项目：
+
+```text
+Project: mingpanshi-ai
+Current domain: https://mingpanshi-ai.pages.dev
+```
+
+买好域名后，在 Cloudflare Dashboard 中：
+
+1. 进入 Workers & Pages。
+2. 打开 `mingpanshi-ai`。
+3. 进入 Custom domains。
+4. 添加你的域名，例如 `mingpanshi.com` 或 `www.mingpanshi.com`。
+5. 按提示完成 DNS 记录和证书签发。
+
+如果是根域名，例如 `mingpanshi.com`，建议整个域名接入同一个 Cloudflare 账号；如果只绑定 `www.mingpanshi.com`，可以按 Cloudflare 提示添加 CNAME。
+
+## VPS 部署方式
+
+### Docker
+
+在 VPS 上：
+
+```bash
+git clone https://github.com/yespsam/mingpanshi-ai.git /opt/mingpanshi-ai
+cd /opt/mingpanshi-ai
+cp .env.example .env
+```
+
+填入：
+
+```text
+OPENAI_API_KEY=你的 Kimi API Key
+PRODUCT_ACCESS_MODE=free
+PORT=8787
+```
+
+启动：
+
+```bash
+docker compose up -d --build
+```
+
+### Ubuntu + systemd + Caddy
+
+```bash
+DOMAIN=你的域名 bash deploy/vps-ubuntu-setup.sh
+```
+
+然后填好：
+
+```text
+/opt/mingpanshi-ai/.env
+```
+
+重启：
+
+```bash
+systemctl restart mingpanshi
+```
 
 ## 当前代码状态
 

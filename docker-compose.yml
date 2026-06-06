@@ -1,0 +1,14 @@
+services:
+  mingpanshi:
+    build: .
+    container_name: mingpanshi-ai
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: "8787"
+      PRODUCT_ACCESS_MODE: "free"
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - ./.data:/app/.data

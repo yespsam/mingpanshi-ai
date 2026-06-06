@@ -1,0 +1,18 @@
+[Unit]
+Description=Mingpanshi AI Fortune Web
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/mingpanshi-ai
+EnvironmentFile=/opt/mingpanshi-ai/.env
+Environment=PORT=8787
+Environment=PRODUCT_ACCESS_MODE=free
+ExecStart=/usr/bin/node /opt/mingpanshi-ai/server.js
+Restart=always
+RestartSec=5
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target
