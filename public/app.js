@@ -248,8 +248,9 @@ function setResultState(state) {
 
 function renderAccount(nextAccount) {
   if (nextAccount) account = nextAccount;
-  if (readingUnlockCount) readingUnlockCount.textContent = String(account?.readingUnlocks ?? 0);
-  if (chatCreditCount) chatCreditCount.textContent = String(account?.chatCredits ?? account?.credits ?? 0);
+  const freeAccess = account?.freeAccess !== false;
+  if (readingUnlockCount) readingUnlockCount.textContent = freeAccess ? "FREE" : String(account?.readingUnlocks ?? 0);
+  if (chatCreditCount) chatCreditCount.textContent = freeAccess ? "FREE" : String(account?.chatCredits ?? account?.credits ?? 0);
 }
 
 async function loadAccount() {
@@ -815,10 +816,12 @@ function renderReport(payload) {
 }
 
 function readingUnlocksLeft() {
+  if (account?.freeAccess !== false) return Number.POSITIVE_INFINITY;
   return Number(account?.readingUnlocks ?? 0);
 }
 
 function chatCreditsLeft() {
+  if (account?.freeAccess !== false) return Number.POSITIVE_INFINITY;
   return Number(account?.chatCredits ?? account?.credits ?? 0);
 }
 
@@ -896,34 +899,11 @@ function downloadReport() {
 }
 
 async function rechargeAccount() {
-  payContinueBtn.disabled = true;
-  payContinueBtn.textContent = "创建订单中";
-  try {
-    const response = await fetch("/api/recharge", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId: clientId(), planId: "pack_5_10" }),
-    });
-    const data = await response.json();
-    if (!response.ok || !data.ok) throw new Error(data.message || "充值失败");
-    renderAccount(data.account);
-    const paymentUrl = data.order?.paymentUrl || data.order?.checkoutUrl;
-    if (data.order?.status === "pending" && paymentUrl) {
-      showToast("加密支付订单已创建，正在打开支付页面。");
-      window.location.href = paymentUrl;
-      return;
-    }
-    hideModal(payModal);
-    showToast(data.order?.status === "paid" ? "已到账 10 次问事额度。" : "订单已创建，请完成支付。");
-    const action = pendingAction;
-    pendingAction = null;
-    if (data.order?.status === "paid" && typeof action === "function") action();
-  } catch (error) {
-    showToast(error.message || "充值失败，请稍后再试。");
-  } finally {
-    payContinueBtn.disabled = false;
-    payContinueBtn.textContent = "加密支付购买 10 次";
-  }
+  hideModal(payModal);
+  showToast("当前网页测试期免费开放，不需要购买额度。");
+  const action = pendingAction;
+  pendingAction = null;
+  if (typeof action === "function") action();
 }
 
 async function unlockReading(channel = "friend") {
@@ -940,7 +920,7 @@ async function unlockReading(channel = "friend") {
     if (!response.ok || !data.ok) throw new Error(data.message || "解锁失败");
     renderAccount(data.account);
     hideModal(shareModal);
-    showToast(channel === "timeline" ? "朋友圈文案已复制，已获得 1 次命盘测算解锁。" : "分享链接已复制，已获得 1 次命盘测算解锁。");
+    showToast(channel === "timeline" ? "朋友圈文案已复制。" : "分享链接已复制。");
     const action = pendingAction;
     pendingAction = null;
     if (typeof action === "function") action();
@@ -954,12 +934,12 @@ async function unlockReading(channel = "friend") {
 function handleInsufficientCredits(error, action) {
   if (error.code === "READING_LOCKED") {
     showShareUnlockModal(action);
-    showToast("先分享解锁 1 次命盘测算。");
+    showToast("当前已改为免费体验，请刷新页面后再试。");
     return true;
   }
   if (error.code === "INSUFFICIENT_CREDITS" || error.status === 402) {
     showPayModal(action);
-    showToast("问事额度不足，请先购买 5 元 10 次套餐。");
+    showToast("当前已改为免费体验，请刷新页面后再试。");
     return true;
   }
   return false;
@@ -982,11 +962,6 @@ async function submitReading() {
     showToast("请先填写出生日期。");
     return;
   }
-  if (readingUnlocksLeft() <= 0) {
-    showShareUnlockModal(() => submitReading());
-    return;
-  }
-
   setLoading(true);
   setResultState("loading");
   try {
@@ -1009,7 +984,7 @@ async function submitReading() {
 
     renderAccount(data.account);
     renderReport(data);
-    showToast("命盘报告已生成，已消耗 1 次测算解锁。");
+    showToast("命盘报告已生成，可继续免费追问。");
   } catch (error) {
     if (!handleInsufficientCredits(error, () => submitReading())) {
       setResultState("empty");
@@ -1030,11 +1005,6 @@ async function submitChat() {
     showToast("请输入想追问的问题。");
     return;
   }
-  if (chatCreditsLeft() <= 0) {
-    showPayModal(() => submitChat());
-    return;
-  }
-
   setChatLoading(true);
   try {
     const response = await fetch("/api/chat", {
@@ -1052,7 +1022,7 @@ async function submitChat() {
     chatInput.value = "";
     renderAccount(data.account);
     renderChat(data.conversation?.messages || []);
-    showToast("命盘师已回复，消耗 1 次问事额度。");
+    showToast("命盘师已回复。");
   } catch (error) {
     if (!handleInsufficientCredits(error, () => submitChat())) {
       showToast(error.message || "追问失败，请稍后再试。");
@@ -1106,9 +1076,9 @@ againBtn?.addEventListener("click", () => {
 });
 shareBtn?.addEventListener("click", () => showShareUnlockModal());
 unlockShareBtn?.addEventListener("click", () => showShareUnlockModal());
-buyPackBtn?.addEventListener("click", () => showPayModal());
+buyPackBtn?.addEventListener("click", () => revealMarketingSection("pricing"));
 railShareBtn?.addEventListener("click", () => showShareUnlockModal());
-railBuyBtn?.addEventListener("click", () => showPayModal());
+railBuyBtn?.addEventListener("click", () => revealMarketingSection("pricing"));
 payCloseBtn?.addEventListener("click", () => {
   pendingAction = null;
   hideModal(payModal);
@@ -1134,7 +1104,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 bootMatrixRain();
-renderAccount({ readingUnlocks: 0, chatCredits: 0 });
+renderAccount({ readingUnlocks: 0, chatCredits: 0, freeAccess: true });
 resetView();
 checkHealth();
 if (location.hash && marketingSectionIds.has(location.hash.slice(1))) {

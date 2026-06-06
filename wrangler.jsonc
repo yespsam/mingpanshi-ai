@@ -21,11 +21,6 @@
     "OPENAI_CHAT_MAX_TOKENS": "1800",
     "MODEL_REQUEST_TIMEOUT_MS": "60000",
     "PUBLIC_SITE_URL": "https://mingpanshi-ai.pages.dev",
-    "PAYMENT_MODE": "demo",
-    "PAYMENT_PROVIDER": "nowpayments",
-    "NOWPAYMENTS_API_BASE": "https://api.nowpayments.io/v1",
-    "CRYPTO_PRICE_AMOUNT": "0.70",
-    "CRYPTO_PRICE_CURRENCY": "usd",
-    "CRYPTO_SUCCESS_STATUSES": "finished"
+    "PRODUCT_ACCESS_MODE": "free"
   }
 }

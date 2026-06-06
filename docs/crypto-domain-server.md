@@ -1,212 +1,119 @@
-# 命盘师稳定域名与加密支付部署
+# 命盘师：加密货币购买域名和服务器说明
 
-## 目标
+## 当前结论
 
-稳定线上环境需要同时满足三件事：
+网页产品本身当前不做用户付费，线上模式为测试期免费体验。
 
-1. 网站和 API 有稳定 HTTPS 域名，不依赖 `trycloudflare.com` 临时隧道。
-2. 加密货币支付网关可以把支付结果回调到固定地址。
-3. 问事额度只在支付回调验签成功后到账。
+你说的“加密支付”指的是我们自己采购基础设施时用加密货币付款，包括：
 
-## 推荐架构
+1. 域名注册或续费。
+2. 云服务器、VPS 或独立服务器。
+3. 未来可选的 CDN、防护、备份等运维服务。
 
-- 当前已上线：Cloudflare Pages + Pages Functions
-- 当前公网地址：`https://mingpanshi-ai.pages.dev`
-- API 数据：Cloudflare KV
-- 加密支付：NOWPayments invoice + IPN webhook
-- 自定义域名：Cloudflare Pages 自定义域名
+这和网页里向用户收款是两回事。当前网页不需要 NOWPayments、充值订单、用户付费回调。
 
-当前项目已经有：
-
-- `wrangler.jsonc`
-- `cloudflare-worker.mjs`
-- `public/_worker.js`
-- `netlify.toml`
-- `netlify/functions/api.mjs`
-- `/api/recharge`
-- `/api/order`
-- `/api/payment-webhook/nowpayments`
-
-Netlify 仍可作为备选方案，但当前登录账号没有可用 team/workspace，CLI 无法创建或部署站点。
-
-## 必填环境变量
-
-生产环境至少需要这些变量：
-
-```bash
-OPENAI_API_KEY=...
-OPENAI_MODEL=kimi-k2.6
-OPENAI_BASE_URL=https://api.moonshot.cn/v1
-OPENAI_API_STYLE=chat
-MODEL_PROVIDER=Kimi
-MODEL_RESPONSE_FORMAT=json
-KIMI_THINKING=disabled
-
-PUBLIC_SITE_URL=https://你的正式域名
-
-PAYMENT_MODE=crypto
-PAYMENT_PROVIDER=nowpayments
-NOWPAYMENTS_API_BASE=https://api.nowpayments.io/v1
-NOWPAYMENTS_API_KEY=...
-NOWPAYMENTS_IPN_SECRET=...
-CRYPTO_PRICE_AMOUNT=0.70
-CRYPTO_PRICE_CURRENCY=usd
-CRYPTO_PAY_CURRENCY=
-CRYPTO_SUCCESS_STATUSES=finished
-```
-
-`PUBLIC_SITE_URL` 很重要。NOWPayments invoice 会使用它生成：
+## 当前线上环境
 
 ```text
-https://你的正式域名/api/payment-webhook/nowpayments
+Cloudflare Pages 项目：mingpanshi-ai
+公网地址：https://mingpanshi-ai.pages.dev
+数据存储：Cloudflare KV / MINGPANSHI_DB
+产品模式：PRODUCT_ACCESS_MODE=free
 ```
 
-这个地址必须是公网可访问的 HTTPS 地址，不能是 localhost 或临时隧道。
+Cloudflare Pages 现在可以继续作为免费公网 H5 入口使用。它适合测试、演示和小程序 H5 容器验证。
 
-## NOWPayments 配置
+## 重要提醒
 
-1. 注册/登录 NOWPayments。
-2. 创建 API Key。
-3. 设置 IPN Secret。
-4. 在 Netlify 环境变量里填：
-   - `NOWPAYMENTS_API_KEY`
-   - `NOWPAYMENTS_IPN_SECRET`
-5. 支付成功后，NOWPayments 会回调：
-   - `/api/payment-webhook/nowpayments`
-6. 服务端会校验 `x-nowpayments-sig`，通过后才给用户增加 10 次对话额度。
+Cloudflare 本身通常不适合作为“加密货币付款购买域名/服务器”的供应商，因为 Cloudflare 账单主要走传统支付方式。若要用加密货币付款，需要选择支持 BTC/USDT/USDC 等付款方式的域名商和服务器商。
 
-## Cloudflare Pages 部署步骤
+## 采购方案
 
-当前生产项目：
+### 方案 A：继续 Cloudflare Pages 免费托管
+
+适合阶段：
+
+- MVP 测试。
+- 临时公网展示。
+- 小程序 H5 页面调试。
+
+优点：
+
+- 当前已经上线。
+- HTTPS 自动可用。
+- 不需要服务器运维。
+
+缺点：
+
+- 不是用加密货币付款购买的服务器。
+- 如果未来流量、后端任务、数据库要求变复杂，可能需要迁移到 VPS 或云服务器。
+
+### 方案 B：购买支持加密货币付款的 VPS
+
+适合阶段：
+
+- 需要独立服务器。
+- 想完全控制 Node 服务、数据库、反向代理。
+- 想用加密货币付款购买服务器。
+
+部署结构：
 
 ```text
-Project: mingpanshi-ai
-URL: https://mingpanshi-ai.pages.dev
-KV: MINGPANSHI_DB
+域名 -> Cloudflare DNS/CDN -> VPS Nginx/Caddy -> Node 服务
 ```
 
-上传 Kimi Key：
+服务器需要安装：
 
-```bash
-npx wrangler pages secret put OPENAI_API_KEY --project-name mingpanshi-ai
-```
+- Node.js 20+
+- PM2 或 systemd
+- Nginx 或 Caddy
+- SQLite/Postgres 或轻量 JSON 存储
+- HTTPS 证书，建议用 Caddy 自动签发或 Certbot
 
-真实加密支付需要再上传：
+### 方案 C：域名和服务器都用支持 crypto 的供应商
 
-```bash
-npx wrangler pages secret put NOWPAYMENTS_API_KEY --project-name mingpanshi-ai
-npx wrangler pages secret put NOWPAYMENTS_IPN_SECRET --project-name mingpanshi-ai
-```
+适合阶段：
 
-然后把 `wrangler.jsonc` 里的生产变量切换为：
+- 想从采购层面尽量不走银行卡。
+- 域名注册、服务器续费都希望用 BTC/USDT/USDC。
+
+注意：
+
+- 域名注册商和服务器商可以不是同一家。
+- DNS 仍然可以接到 Cloudflare 免费层做解析和 HTTPS/CDN。
+- 购买前要确认供应商当前仍支持对应币种和地区。
+
+## 下一步需要确认
+
+在正式购买前，需要确定：
+
+1. 你想买的域名，例如 `mingpanshi.com` 或其他名称。
+2. 支付币种：BTC、USDT、USDC 还是其他。
+3. 服务器预算：每月 5-20 美元的小 VPS，还是更高规格。
+4. 是否要保留 Cloudflare 做 DNS/CDN。
+
+## 推荐落地顺序
+
+1. 先确定域名。
+2. 找支持加密货币付款的域名商购买域名。
+3. 把域名 DNS 接到 Cloudflare。
+4. 当前 H5 先绑定到 Cloudflare Pages 自定义域名。
+5. 如果后续需要独立服务器，再购买支持 crypto 的 VPS。
+6. VPS 上部署 Node 服务，并把 API 域名切过去。
+
+## 当前代码状态
+
+当前代码已把网页用户侧改为免费体验模式：
 
 ```json
 {
-  "PAYMENT_MODE": "crypto",
-  "PUBLIC_SITE_URL": "https://mingpanshi-ai.pages.dev"
+  "PRODUCT_ACCESS_MODE": "free"
 }
 ```
 
-如果绑定自定义域名，把 `PUBLIC_SITE_URL` 改成正式域名，例如：
+这表示：
 
-```text
-https://mingpanshi.com
-```
-
-重新部署：
-
-```bash
-npx wrangler pages deploy public --project-name mingpanshi-ai --branch main
-```
-
-线上验收：
-
-```bash
-curl https://mingpanshi-ai.pages.dev/api/health
-```
-
-## Netlify 部署步骤
-
-本机先登录：
-
-```bash
-npx netlify login
-```
-
-登录后确认站点状态：
-
-```bash
-npx netlify status
-```
-
-设置环境变量：
-
-```bash
-npx netlify env:set OPENAI_API_KEY "..."
-npx netlify env:set PUBLIC_SITE_URL "https://你的正式域名"
-npx netlify env:set PAYMENT_MODE "crypto"
-npx netlify env:set PAYMENT_PROVIDER "nowpayments"
-npx netlify env:set NOWPAYMENTS_API_KEY "..."
-npx netlify env:set NOWPAYMENTS_IPN_SECRET "..."
-npx netlify env:set CRYPTO_PRICE_AMOUNT "0.70"
-npx netlify env:set CRYPTO_PRICE_CURRENCY "usd"
-```
-
-部署生产版本：
-
-```bash
-npx netlify deploy --prod
-```
-
-## 域名绑定
-
-在 Netlify 后台添加自定义域名，例如：
-
-```text
-mingpanshi.com
-www.mingpanshi.com
-```
-
-如果域名 DNS 在 Cloudflare：
-
-1. Netlify 后台添加域名。
-2. 按 Netlify 提示添加 DNS 记录。
-3. 等待证书签发。
-4. 确认 `https://你的正式域名/api/health` 能返回 JSON。
-
-## 验收清单
-
-部署完成后依次检查：
-
-```bash
-curl https://你的正式域名/api/health
-```
-
-需要看到：
-
-```json
-{
-  "ok": true,
-  "billing": {
-    "paymentMode": "crypto",
-    "paymentProvider": "nowpayments"
-  }
-}
-```
-
-再创建一笔订单：
-
-```bash
-curl -X POST https://你的正式域名/api/recharge \
-  -H "Content-Type: application/json" \
-  -d '{"clientId":"test-user","planId":"pack_5_10"}'
-```
-
-需要返回 `paymentUrl`，用户打开后进入 NOWPayments 支付页。
-
-## 注意
-
-- 不要把 `.env` 提交到 GitHub。
-- 不要在生产环境使用 `PAYMENT_MODE=demo`。
-- 不要把 `NOWPAYMENTS_IPN_SECRET` 放到前端。
-- 支付平台回调可能重复发送，服务端已经做了重复回调不重复加额度的处理。
+- 用户生成命盘不需要付费。
+- 用户追问不需要购买额度。
+- 网页里不显示加密货币支付入口。
+- 加密货币只用于我们自己购买域名和服务器。

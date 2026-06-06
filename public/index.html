@@ -21,7 +21,7 @@
         <a href="#analysis">命盘终端</a>
         <a href="#sample">样例输出</a>
         <a href="#flow">流年信号</a>
-        <a href="#pricing">额度协议</a>
+        <a href="#pricing">体验说明</a>
         <a href="#records">记录库</a>
       </nav>
       <a class="header-cta" href="#analysis">RUN</a>
@@ -70,8 +70,8 @@
 <span class="code-key">[RUN]</span> psyche.mapping(question)
 <span class="code-ok">[OUT]</span> destiny_report.ready</code></pre>
             <div class="guide-foot">
-              <div><span>READING</span><strong>SHARE_UNLOCK</strong></div>
-              <div><span>CHAT</span><strong>¥5 / 10 CALLS</strong></div>
+              <div><span>READING</span><strong>FREE_BETA</strong></div>
+              <div><span>CHAT</span><strong>FREE_BETA</strong></div>
             </div>
           </article>
         </div>
@@ -84,7 +84,7 @@
             <a class="rail-item" href="#report"><span>json</span><strong>命盘</strong></a>
             <a class="rail-item" href="#flow"><span>log</span><strong>流年</strong></a>
             <button class="rail-item" id="railShareBtn" type="button"><span>share</span><strong>分享</strong></button>
-            <button class="rail-item rail-pack" id="railBuyBtn" type="button"><span>pay</span><strong>5/10</strong></button>
+            <button class="rail-item rail-pack" id="railBuyBtn" type="button"><span>info</span><strong>说明</strong></button>
           </aside>
 
           <div class="shell-main">
@@ -140,19 +140,19 @@
                 <p class="terminal-prompt">>>> 请输入出生信息以启动命盘解析</p>
                 <div class="quota-card">
                   <div>
-                    <span>READ_UNLOCKS</span>
-                    <strong id="readingUnlockCount">0</strong>
-                    <small>分享后免费测算</small>
+                    <span>READ_MODE</span>
+                    <strong id="readingUnlockCount">FREE</strong>
+                    <small>测试期免费测算</small>
                   </div>
                   <div>
-                    <span>CHAT_CREDITS</span>
-                    <strong id="chatCreditCount">0</strong>
-                    <small>5 元购买 10 次</small>
+                    <span>CHAT_MODE</span>
+                    <strong id="chatCreditCount">FREE</strong>
+                    <small>测试期免费追问</small>
                   </div>
                 </div>
                 <div class="account-actions">
-                  <button class="secondary-button mini-action" id="unlockShareBtn" type="button">分享解锁起盘</button>
-                  <button class="primary-button mini-action" id="buyPackBtn" type="button">5 元买 10 次问事</button>
+                  <button class="secondary-button mini-action" id="unlockShareBtn" type="button">复制分享文案</button>
+                  <button class="primary-button mini-action" id="buyPackBtn" type="button">查看体验说明</button>
                 </div>
 
                 <div class="section-heading">
@@ -245,7 +245,7 @@
                     <span class="button-orbit" aria-hidden="true"></span>
                     <span class="button-label">开始起盘</span>
                   </button>
-                  <p class="fine-print">命盘测算通过分享给朋友或朋友圈解锁；报告后的每轮追问消耗 1 次问事额度。</p>
+                  <p class="fine-print">当前网页测试期免费开放：可直接生成命盘报告，并继续追问事业、感情、财运与当下困惑。</p>
                 </form>
               </section>
 
@@ -348,7 +348,7 @@ console.log(report.pillars);</code></pre>
                 <div class="section-heading">
                   <div>
                     <p>CHAT MODE</p>
-                    <small>可继续问事业、感情、财运、关系选择或当下困惑；每次回复消耗 1 次额度</small>
+                    <small>可继续问事业、感情、财运、关系选择或当下困惑；测试期免费追问</small>
                   </div>
                 </div>
                 <div class="chat-messages" id="chatMessages"></div>
@@ -377,18 +377,18 @@ console.log(report.pillars);</code></pre>
       </section>
 
       <section class="pricing-section marketing-section" id="pricing" data-marketing-section hidden>
-        <span class="section-kicker">使用规则</span>
-        <h2>轻量体验，低门槛转化</h2>
+        <span class="section-kicker">体验说明</span>
+        <h2>测试期免费开放</h2>
         <div class="rule-grid">
           <article class="rule-card">
             <div class="rule-icon">享</div>
-            <h3>分享解锁命盘</h3>
-            <p>分享给好友或朋友圈，即可获得 1 次命盘测算机会。</p>
+            <h3>直接起盘</h3>
+            <p>填写出生信息和问题后，可直接生成 AI 命盘报告。</p>
           </article>
           <article class="rule-card highlight">
-            <div class="rule-icon">¥5</div>
-            <h3>问事 5 元 10 次</h3>
-            <p>报告生成后，每轮追问消耗 1 次问事额度，适合深入细问。</p>
+            <div class="rule-icon">问</div>
+            <h3>免费追问</h3>
+            <p>报告生成后，可继续追问事业、感情、财运、关系选择或现实困惑。</p>
           </article>
           <article class="rule-card">
             <div class="rule-icon">盘</div>
@@ -429,7 +429,7 @@ console.log(report.pillars);</code></pre>
         </div>
         <article><h3>结构化生成</h3><p>基于命盘资料包输出报告。</p></article>
         <article><h3>多维度分析</h3><p>覆盖整体、事业、感情、财运、健康与流年。</p></article>
-        <article><h3>清晰付费</h3><p>测算靠分享解锁，问事按 5 元 10 次独立扣减。</p></article>
+        <article><h3>开放体验</h3><p>当前测试期不向网页用户收取费用，后续商业规则会单独调整。</p></article>
       </section>
     </main>
 
@@ -450,11 +450,11 @@ console.log(report.pillars);</code></pre>
     <div class="modal" id="payModal" hidden>
       <div class="modal-card">
         <button class="modal-close" id="payCloseBtn" type="button">×</button>
-        <div class="modal-icon">₿</div>
-        <h2>问事额度不足</h2>
-        <p>命盘报告可以通过分享解锁；继续追问需要购买问事额度，支持加密货币支付，约 5 元可获得 10 次。</p>
-        <button class="primary-button" id="payContinueBtn" type="button">加密支付购买 10 次</button>
-        <button class="secondary-button" id="payShareBtn" type="button">查看套餐说明</button>
+        <div class="modal-icon">免</div>
+        <h2>当前免费开放</h2>
+        <p>网页测试期暂不向用户收取费用，可直接生成报告并继续追问。服务器和域名采购会单独选择支持加密付款的供应商。</p>
+        <button class="primary-button" id="payContinueBtn" type="button">继续体验</button>
+        <button class="secondary-button" id="payShareBtn" type="button">查看体验说明</button>
       </div>
     </div>
 
@@ -462,10 +462,10 @@ console.log(report.pillars);</code></pre>
       <div class="modal-card share-card">
         <button class="modal-close" id="shareCloseBtn" type="button">×</button>
         <div class="modal-icon gift">礼</div>
-        <h2>分享解锁命盘测算</h2>
-        <p>复制好友链接或朋友圈文案后，账户会获得 1 次命盘测算解锁；小程序版本会接入微信原生转发。</p>
-        <button class="primary-button" id="posterBtn" type="button">分享给朋友解锁</button>
-        <button class="secondary-button" id="inviteBtn" type="button">发朋友圈解锁</button>
+        <h2>分享命盘师</h2>
+        <p>当前不需要分享解锁；这里仅用于复制分享链接或朋友圈文案。小程序版本后续会接入微信原生转发。</p>
+        <button class="primary-button" id="posterBtn" type="button">复制好友分享文案</button>
+        <button class="secondary-button" id="inviteBtn" type="button">复制朋友圈文案</button>
       </div>
     </div>
 

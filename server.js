@@ -174,6 +174,7 @@ const STAR_ARCHETYPES = {
 
 const DB_VERSION = 3;
 const CREDIT_PACK = { id: "pack_5_10", priceYuan: 5, credits: 10, label: "5 元 10 次" };
+const FREE_PRODUCT_PLAN = { id: "free_beta", label: "测试期免费体验" };
 const LOCAL_DB_PATH = path.join(ROOT_DIR, ".data", "mingpanshi-db.json");
 
 const SYSTEM_PROMPT = [
@@ -356,6 +357,7 @@ function normalizeUserLedger(user) {
 
 function publicAccount(user) {
   normalizeUserLedger(user);
+  const freeAccess = isFreeProductMode();
   return {
     userId: user.id,
     readingUnlocks: Number(user.readingUnlocks) || 0,
@@ -365,13 +367,28 @@ function publicAccount(user) {
     totalChatUsed: Number(user.totalChatUsed) || 0,
     totalReadingUnlocked: Number(user.totalReadingUnlocked) || 0,
     totalReadingUsed: Number(user.totalReadingUsed) || 0,
-    plan: CREDIT_PACK,
-    paymentMode: process.env.PAYMENT_MODE || "demo",
+    plan: freeAccess ? FREE_PRODUCT_PLAN : CREDIT_PACK,
+    paymentMode: freeAccess ? "free" : process.env.PAYMENT_MODE || "demo",
+    accessMode: productAccessMode(),
+    freeAccess,
   };
 }
 
 function publicBilling() {
+  if (isFreeProductMode()) {
+    return {
+      accessMode: productAccessMode(),
+      paymentEnabled: false,
+      plan: FREE_PRODUCT_PLAN,
+      readingUnlock: "当前测试期免费生成 AI 命盘报告。",
+      chatUnitCost: "当前测试期免费追问，不需要购买额度。",
+      infrastructurePayment: "服务器和域名采购可单独选择支持加密货币付款的供应商。",
+    };
+  }
+
   return {
+    accessMode: productAccessMode(),
+    paymentEnabled: true,
     plan: CREDIT_PACK,
     paymentMode: process.env.PAYMENT_MODE || "demo",
     paymentProvider: process.env.PAYMENT_PROVIDER || "demo",
@@ -393,6 +410,7 @@ function pushEvent(db, event) {
 }
 
 function ensureReadingUnlock(user) {
+  if (isFreeProductMode()) return;
   normalizeUserLedger(user);
   if ((Number(user.readingUnlocks) || 0) <= 0) {
     const error = new Error("请先分享给朋友或朋友圈，免费解锁 1 次 AI 命盘测算。");
@@ -403,6 +421,7 @@ function ensureReadingUnlock(user) {
 }
 
 function ensureChatCredits(user) {
+  if (isFreeProductMode()) return;
   normalizeUserLedger(user);
   if ((Number(user.chatCredits) || 0) <= 0) {
     const error = new Error("余额不足，请先购买 5 元 10 次套餐。");
@@ -414,6 +433,12 @@ function ensureChatCredits(user) {
 
 function deductReadingUnlock(db, user, refId) {
   normalizeUserLedger(user);
+  if (isFreeProductMode()) {
+    user.totalReadingUsed = (Number(user.totalReadingUsed) || 0) + 1;
+    user.updatedAt = nowIso();
+    pushEvent(db, { type: "reading.free_used", userId: user.id, refId, balance: user.readingUnlocks });
+    return;
+  }
   user.readingUnlocks = Math.max(0, (Number(user.readingUnlocks) || 0) - 1);
   user.totalReadingUsed = (Number(user.totalReadingUsed) || 0) + 1;
   user.updatedAt = nowIso();
@@ -422,6 +447,12 @@ function deductReadingUnlock(db, user, refId) {
 
 function deductChatCredit(db, user, refId) {
   normalizeUserLedger(user);
+  if (isFreeProductMode()) {
+    user.totalChatUsed = (Number(user.totalChatUsed) || 0) + 1;
+    user.updatedAt = nowIso();
+    pushEvent(db, { type: "chat.free_used", userId: user.id, refId, balance: user.chatCredits });
+    return;
+  }
   user.chatCredits = Math.max(0, (Number(user.chatCredits) || 0) - 1);
   user.totalChatUsed = (Number(user.totalChatUsed) || 0) + 1;
   user.updatedAt = nowIso();
@@ -447,6 +478,15 @@ function paymentMode() {
   const mode = String(process.env.PAYMENT_MODE || "demo").trim().toLowerCase();
   if (["crypto", "live"].includes(mode)) return "crypto";
   return "demo";
+}
+
+function productAccessMode() {
+  const mode = String(process.env.PRODUCT_ACCESS_MODE || "free").trim().toLowerCase();
+  return mode === "paid" ? "paid" : "free";
+}
+
+function isFreeProductMode() {
+  return productAccessMode() === "free";
 }
 
 function cryptoPaymentConfig() {
@@ -2336,6 +2376,18 @@ async function handleApiOperation({ method, pathname, input = {}, headers = {}, 
   }
 
   if (pathname === "/api/recharge" && method === "POST") {
+    if (isFreeProductMode()) {
+      return {
+        status: 403,
+        payload: {
+          ok: false,
+          code: "PAYMENT_DISABLED",
+          message: "当前网页测试期免费开放，不需要购买额度。",
+          billing: publicBilling(),
+        },
+      };
+    }
+
     const db = normalizeDb(await store.readDb());
     const user = getOrCreateUser(db, input.clientId);
     const order = await rechargeUser(db, user, input.planId || CREDIT_PACK.id, input, headers);
