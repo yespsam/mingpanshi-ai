@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mingpanshi-ai",
+  "pages_build_output_dir": "./public",
+  "compatibility_date": "2026-06-06",
+  "compatibility_flags": ["nodejs_compat"],
+  "kv_namespaces": [
+    {
+      "binding": "MINGPANSHI_DB",
+      "id": "a0780114a6c946dc8190a0bfb0a2c67e"
+    }
+  ],
+  "vars": {
+    "OPENAI_MODEL": "kimi-k2.6",
+    "OPENAI_BASE_URL": "https://api.moonshot.cn/v1",
+    "OPENAI_API_STYLE": "chat",
+    "MODEL_PROVIDER": "Kimi",
+    "MODEL_RESPONSE_FORMAT": "json",
+    "KIMI_THINKING": "disabled",
+    "OPENAI_MAX_OUTPUT_TOKENS": "4200",
+    "OPENAI_CHAT_MAX_TOKENS": "1800",
+    "MODEL_REQUEST_TIMEOUT_MS": "60000",
+    "PUBLIC_SITE_URL": "https://mingpanshi-ai.pages.dev",
+    "PAYMENT_MODE": "demo",
+    "PAYMENT_PROVIDER": "nowpayments",
+    "NOWPAYMENTS_API_BASE": "https://api.nowpayments.io/v1",
+    "CRYPTO_PRICE_AMOUNT": "0.70",
+    "CRYPTO_PRICE_CURRENCY": "usd",
+    "CRYPTO_SUCCESS_STATUSES": "finished"
+  }
+}

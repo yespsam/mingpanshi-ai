@@ -5,7 +5,7 @@ const crypto = require("crypto");
 const { Solar } = require("lunar-javascript");
 const { buildMysticSystems } = require("./mystic-systems");
 
-const ROOT_DIR = __dirname;
+const ROOT_DIR = typeof __dirname === "string" ? __dirname : ".";
 const PUBLIC_DIR = path.join(ROOT_DIR, "public");
 
 loadEnv(path.join(ROOT_DIR, ".env"));
@@ -218,8 +218,13 @@ const REPORT_ENHANCEMENT_PROMPT = [
 ].join("\n");
 
 function loadEnv(filePath) {
-  if (!fs.existsSync(filePath)) return;
-  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
+  let lines;
+  try {
+    if (!fs.existsSync(filePath)) return;
+    lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
+  } catch {
+    return;
+  }
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line || line.startsWith("#") || !line.includes("=")) continue;
@@ -2652,15 +2657,15 @@ async function handleApi(req, res) {
   }
 }
 
-const server = http.createServer((req, res) => {
-  if (req.url.startsWith("/api/")) {
-    handleApi(req, res);
-    return;
-  }
-  serveStatic(req, res);
-});
+if (typeof require !== "undefined" && require.main === module) {
+  const server = http.createServer((req, res) => {
+    if (req.url.startsWith("/api/")) {
+      handleApi(req, res);
+      return;
+    }
+    serveStatic(req, res);
+  });
 
-if (require.main === module) {
   server.listen(PORT, () => {
     console.log(`命盘师 AI 已启动：http://localhost:${PORT}`);
   });

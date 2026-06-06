@@ -10,19 +10,24 @@
 
 ## 推荐架构
 
-- 前端静态资源：Netlify Site
-- API：Netlify Functions
-- 数据：Netlify Blobs
+- 当前已上线：Cloudflare Pages + Pages Functions
+- 当前公网地址：`https://mingpanshi-ai.pages.dev`
+- API 数据：Cloudflare KV
 - 加密支付：NOWPayments invoice + IPN webhook
-- 自定义域名：Netlify Domain 或 Cloudflare DNS 指向 Netlify
+- 自定义域名：Cloudflare Pages 自定义域名
 
 当前项目已经有：
 
+- `wrangler.jsonc`
+- `cloudflare-worker.mjs`
+- `public/_worker.js`
 - `netlify.toml`
 - `netlify/functions/api.mjs`
 - `/api/recharge`
 - `/api/order`
 - `/api/payment-webhook/nowpayments`
+
+Netlify 仍可作为备选方案，但当前登录账号没有可用 team/workspace，CLI 无法创建或部署站点。
 
 ## 必填环境变量
 
@@ -69,6 +74,56 @@ https://你的正式域名/api/payment-webhook/nowpayments
 5. 支付成功后，NOWPayments 会回调：
    - `/api/payment-webhook/nowpayments`
 6. 服务端会校验 `x-nowpayments-sig`，通过后才给用户增加 10 次对话额度。
+
+## Cloudflare Pages 部署步骤
+
+当前生产项目：
+
+```text
+Project: mingpanshi-ai
+URL: https://mingpanshi-ai.pages.dev
+KV: MINGPANSHI_DB
+```
+
+上传 Kimi Key：
+
+```bash
+npx wrangler pages secret put OPENAI_API_KEY --project-name mingpanshi-ai
+```
+
+真实加密支付需要再上传：
+
+```bash
+npx wrangler pages secret put NOWPAYMENTS_API_KEY --project-name mingpanshi-ai
+npx wrangler pages secret put NOWPAYMENTS_IPN_SECRET --project-name mingpanshi-ai
+```
+
+然后把 `wrangler.jsonc` 里的生产变量切换为：
+
+```json
+{
+  "PAYMENT_MODE": "crypto",
+  "PUBLIC_SITE_URL": "https://mingpanshi-ai.pages.dev"
+}
+```
+
+如果绑定自定义域名，把 `PUBLIC_SITE_URL` 改成正式域名，例如：
+
+```text
+https://mingpanshi.com
+```
+
+重新部署：
+
+```bash
+npx wrangler pages deploy public --project-name mingpanshi-ai --branch main
+```
+
+线上验收：
+
+```bash
+curl https://mingpanshi-ai.pages.dev/api/health
+```
 
 ## Netlify 部署步骤
 
