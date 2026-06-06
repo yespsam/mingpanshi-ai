@@ -83,6 +83,25 @@ Cloudflare 本身通常不适合作为“加密货币付款购买域名/服务�
 - DNS 仍然可以接到 Cloudflare 免费层做解析和 HTTPS/CDN。
 - 购买前要确认供应商当前仍支持对应币种和地区。
 
+## 候选供应商
+
+购买前必须重新确认价格、退款规则、KYC 要求和支持币种，因为这类规则经常变化。
+
+### 域名
+
+- Namecheap：官方说明支持 Bitcoin，可用于购买域名、主机、SSL 或隐私服务；如果用于域名注册，通常需要先把 crypto 充值到 Namecheap 账户余额。
+
+### VPS / 云服务器
+
+- Cherry Servers：官方说明支持 Bitcoin、Ethereum、USDC、USDT 等多种加密货币，可购买 VPS 或独立服务器。
+- BitLaunch：主打用加密货币购买 VPS，支持 Bitcoin、Ethereum、Litecoin 等。
+- HostSailor：官方说明支持 50+ 种加密货币，可用于服务器、域名和 SSL。
+- OrangeWebsite：官方说明支持 Bitcoin、Litecoin、Ethereum、Bitcoin Cash、Monero 等购买主机、Cloud VPS 和独立服务器。
+
+### 不建议用来完成“crypto 付款”目标
+
+- Cloudflare：适合继续做 DNS、CDN、Pages 和 HTTPS，但官方账单付款方式主要是卡、PayPal、Apple Pay、Google Pay、Stripe Link、UnionPay 等，没有把加密货币列为自助付款方式。
+
 ## 下一步需要确认
 
 在正式购买前，需要确定：
