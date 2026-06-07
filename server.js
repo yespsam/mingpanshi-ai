@@ -194,18 +194,19 @@ const CHAT_SYSTEM_PROMPT = [
   "你是“命盘师”的对话式命盘顾问。",
   "你会基于用户已生成的命盘资料和报告继续回答追问。",
   "回答风格要白话、直接、像一个懂命盘也懂现实生活的人在解释：少用术语堆砌，术语出现后必须马上翻译成人话。",
-  "每次回答都要先给用户能听懂的结论，再解释命盘为什么这么看，再拆心理原因，最后给可执行步骤。",
-  "如果上下文包含 mysticSystems，只选最相关的 1-2 个术数层辅助解释；例如感情用姻缘层/日支/六爻，事业财运用八字十神/奇门，纠结选择可用梅花/塔罗心理镜像。",
-  "固定使用 5 个小段落，段首分别为：【直接结论】【为什么这么看】【你心里真正卡的点】【接下来怎么做】【留给你的问题】。",
-  "【直接结论】用 2-3 句话正面回答用户问题，不绕弯，不只说“看缘分”“顺其自然”。",
-  "【为什么这么看】引用至少 2 类资料：四柱/日主、五行强弱、八卦六爻/变爻、星术参照、流年主题；但要把每个依据翻译成白话，例如“火弱”要解释成行动热度、表达欲或动力容易不足。",
-  "【你心里真正卡的点】用心理咨询式语言解释可能的真实需要、压力模式、边界感、认知-情绪-行为链路；不能诊断疾病，不能自称治疗。",
-  "【接下来怎么做】给 2-3 个能在 7 天内执行的小步骤，尽量包含观察指标、沟通方式或风险边界。",
-  "【留给你的问题】给 1-2 个温和但能点醒用户的问题，帮助用户继续判断。",
+  "不要固定套用标题模板，不要每次都用同一套 5 段结构；根据用户问题自然组织 3-5 个短段落即可。",
+  "每次回答都必须先识别用户问题类型，例如换工作、复合、正缘、财务选择、学习考试、健康节奏、关系冲突、二选一决策或整体迷茫。",
+  "每次回答至少引用 3 个具体命盘数据：四柱中的具体柱位/日主/月令/十神、五行最强最弱、本卦变卦/动爻、流年主题、mysticSystems 中最相关的 1-2 个体系。不能只说“你的命盘显示”。",
+  "不同问题要换不同分析重心：感情问题重点看日支/姻缘层/关系边界；事业问题重点看日主承压、月柱、十神、奇门行动层；财运问题重点看财星、资源边界、风险偏好；二选一问题重点看卦象、体用和现实验证条件。",
+  "必须围绕用户原话回答，不要把所有问题都回答成“先小步验证”。只有问题本身适合验证时才给验证动作。",
+  "直接给出倾向性判断，但保留娱乐和现实校验边界。例如可以说“更偏向先谈条件再跳”，不要只说“看情况”。",
+  "心理咨询式内容只用于解释情绪、边界、需求和行为链路，不能诊断，不能自称治疗。",
+  "给建议时要具体到场景、话术、观察指标或时间窗口；不要空泛说“多沟通、稳一点、提升自己”。",
+  "最后可以给 1 个继续追问的方向，但不要像模板化作业题。",
   "如果用户表达自伤、轻生或立即危险，先建议联系当地紧急服务、身边可信任的人或线下专业支持，再做简短陪伴。",
   "回答要具体、克制、可执行，不恐吓用户，不做确定性命运断言，不要像模板文案。",
   "不要提供医疗、法律、投资等专业结论；涉及钱、健康、重大关系时提醒用户自行判断。",
-  "回答用中文纯文本，不要 Markdown 表格，不要编号堆砌，长度控制在 420-620 字。",
+  "回答用中文纯文本，不要 Markdown 表格，不要编号堆砌，长度控制在 360-680 字。",
 ].join("\n");
 
 const REPORT_ENHANCEMENT_PROMPT = [
@@ -214,6 +215,8 @@ const REPORT_ENHANCEMENT_PROMPT = [
   "必须输出合法 JSON，不要 Markdown 代码块，不要解释技术实现。",
   "输出要像给普通用户解释，不是把标题写成“大白话”，而是每一句都让人立刻知道是什么意思。",
   "术语必须翻译成人话：例如“火旺”要解释成行动热度、表达欲或急躁感；“金弱”要解释成规则、边界、复盘或判断力需要补。",
+  "必须识别用户问题类型，并围绕用户原话重写重点判断；不要只做通用摘要。",
+  "增强内容必须点名具体命盘数据，例如日柱、月柱、时柱、日主、十神、五行百分比、本卦变卦、动爻、流年主题或 mysticSystems 里的相关层。",
   "只围绕用户问题、重点问题、多术数交叉验证和行动建议增强。",
   "不要恐吓用户，不做确定性命运断言，不提供医疗、法律、投资结论。",
 ].join("\n");
@@ -1257,6 +1260,64 @@ function inferFocus(focus, question) {
   return "overall";
 }
 
+function inferQuestionIntent(question, focus = "overall") {
+  const text = String(question || "");
+  const make = (key, label, evidenceFocus, answerMode, actionFrame) => ({
+    key,
+    label,
+    evidenceFocus,
+    answerMode,
+    actionFrame,
+  });
+
+  if (/换工作|跳槽|离职|转岗|辞职|offer|面试|升职|老板|同事|职场|项目|创业/.test(text)) {
+    return make("career_move", "事业变动/工作选择", "日主承压方式、月柱/时柱十神、五行行动力与承接力、奇门行动层、流年事业窗口", "判断更适合主动推进、谈条件、等待时机还是先补筹码", "给出 7-30 天内可验证的投递、谈判、作品整理或沟通动作");
+  }
+  if (/复合|前任|分手|和好|挽回|冷战/.test(text)) {
+    return make("love_reconcile", "复合/关系修复", "日支关系宫、姻缘层、六爻世应关系、五行情绪流动和边界感", "判断是否适合主动联系、先观察、定边界或放下消耗", "给出一次沟通话术、观察对方回应的指标和止损边界");
+  }
+  if (/正缘|对象|脱单|桃花|恋爱|结婚|婚姻|暧昧|喜欢的人/.test(text) || focus === "love") {
+    return make("love_future", "姻缘/长期关系", "日支、配偶星/关系用神、姻缘层、星术表达方式和心理需求", "判断关系机会来自哪里、适合什么相处模式、要避开什么消耗", "给出筛选关系、表达需求和观察稳定回应的方法");
+  }
+  if (/钱|财|收入|工资|副业|生意|投资|理财|买房|负债|合作赚钱/.test(text) || focus === "wealth") {
+    return make("wealth_choice", "财运/资源选择", "财星、食伤输出、五行土金水的资源边界、奇门生门/开门、流年财务节奏", "判断更适合守、试、谈、扩张还是先控风险", "给出预算边界、试错额度、收入验证和风险止损动作");
+  }
+  if (/考试|学习|考研|证书|上岸|课程|读书|留学|面试准备/.test(text) || focus === "study") {
+    return make("study_exam", "学习/考试/成长", "印星、食伤输出、木水学习吸收力、时柱长期规划和流年学习窗口", "判断适合冲刺、补基础、换方法还是先稳定节奏", "给出复习周期、输出检查和反馈机制");
+  }
+  if (/健康|身体|睡眠|焦虑|抑郁|压力|状态|情绪|累|内耗/.test(text) || focus === "health") {
+    return make("health_rhythm", "身心节奏/压力", "五行弱项、心理动力、风水环境层、日主恢复力和生活节奏", "判断压力来源、节奏漏洞和需要优先恢复的部分", "给出非医疗的作息、记录、沟通边界和求助提醒");
+  }
+  if (/选|选择|要不要|该不该|适不适合|能不能|会不会|什么时候|时机|方向/.test(text)) {
+    return make("decision_timing", "选择/时机判断", "本卦变卦、动爻、体用关系、流年主题和现实前置条件", "判断现在适合行动、等待、谈条件、止损还是分阶段推进", "给出决策前置条件、验证动作和时间窗口");
+  }
+  return make(focus === "overall" ? "overall_reading" : `${focus}_reading`, FOCUS_LABELS[focus] || "整体问题", "日主、月令、五行强弱、卦象变化、心理动力和流年主题", "先回答用户原问题，再说明盘面依据和现实可执行路径", "给出一条当前最重要的现实动作和一条需要避开的坑");
+}
+
+function intentRealityCheck(intent = {}) {
+  return {
+    career_move: "谈判筹码、岗位反馈、作品成果和离职成本",
+    love_reconcile: "对方是否稳定回应、是否愿意沟通、关系边界和止损线",
+    love_future: "稳定回应、价值观匹配、相处边界和现实安排",
+    wealth_choice: "现金流、合约责任、试错额度和退出条件",
+    study_exam: "复习节奏、输出质量、模拟反馈和薄弱环节",
+    health_rhythm: "睡眠、压力触发点、身体反馈和求助资源",
+    decision_timing: "前置条件、外部回应、最坏结果和时间窗口",
+  }[intent.key] || "现实回应、资源边界和行动条件";
+}
+
+function intentActionText(intent = {}, weakestElement = "") {
+  return {
+    career_move: "先整理可展示成果，再试投或约一次行业沟通，拿真实反馈判断要不要跳",
+    love_reconcile: "先写清楚想表达的感受、事实和请求，只做一次低压沟通，再看对方是否持续回应",
+    love_future: "把筛选标准写成三条底线和三条期待，观察对方是否尊重边界、是否稳定投入",
+    wealth_choice: "先划出不可动资金和可试错额度，任何合作都先看合同、回款和退出条件",
+    study_exam: "把目标拆成每日输出、错题复盘和每周模拟反馈，不只用学习时长安慰自己",
+    health_rhythm: "先记录 7 天睡眠、饮食、压力触发点和情绪波动，必要时找线下专业支持",
+    decision_timing: "先列出推进必须满足的三个条件，满足再行动，不满足就先谈条件或暂缓",
+  }[intent.key] || (weakestElement ? `${elementExplain(weakestElement).action}` : "先做一个能拿到现实反馈的小动作");
+}
+
 function buildFortuneProfile(input) {
   const name = String(input.name || "").trim().slice(0, 24) || "有缘人";
   const gender = String(input.gender || "").trim().slice(0, 20) || "未填写";
@@ -1284,6 +1345,7 @@ function buildFortuneProfile(input) {
   const domains = buildDomainScores(seed, strongest, weakest, focus);
   const nayin = pillars.year?.naYin || NAYIN[Math.floor((pillars.year?.index || 0) / 2)];
   const focusLabel = FOCUS_LABELS[focus] || FOCUS_LABELS.overall;
+  const questionIntent = inferQuestionIntent(question, focus);
   const sign = westernSign(birth.month, birth.day);
   const sixYao = buildSixYaoInsight(hexagrams, strongest, weakest, focusLabel);
   const psychology = buildPsychologyLens(strongest, weakest, focusLabel, question);
@@ -1294,6 +1356,7 @@ function buildFortuneProfile(input) {
     question,
     focus,
     focusLabel,
+    questionIntent,
     birthDate: input.birthDate,
     birthTime: input.birthTime || "未知",
     birthPlace: trueSolarTime.place?.input || "",
@@ -1507,8 +1570,16 @@ function buildPrompt(profile) {
     "如果 profile.mysticSystems 存在，必须输出“多术数交叉验证”章节；只选最相关的体系，不要把所有层逐条罗列。",
     "心理内容只做自我反思、情绪识别、边界澄清和行动建议，不做诊断，不替代心理治疗或线下专业支持。",
     "重点问题必须直接回应用户原话，每个判断都尽量写出：命盘依据、心理动力、现实检验方式。",
+    "必须使用 personalizationAnchors 和 questionSpecificReadingSeed；不要把不同用户或不同问题写成同一套答案。",
+    "不要反复使用“先小步验证、稳住节奏”作为万能结论；只有当问题意图和盘面依据支持时才使用。",
     "",
     JSON.stringify({ profile: compactProfileForPrompt(profile), outputSchema: schema }),
+    "",
+    "personalizationAnchors:",
+    JSON.stringify(profileAnchors(profile), null, 2),
+    "",
+    "questionSpecificReadingSeed:",
+    intentSpecificReading(profile),
   ].join("\n");
 }
 
@@ -1608,6 +1679,8 @@ function buildChatPrompt({ profile, report, history, message }) {
     "",
     JSON.stringify({
       user: profile?.user,
+      personalizationAnchors: profileAnchors(profile, message),
+      questionSpecificReadingSeed: intentSpecificReading(profile, message),
       meta: profile?.meta,
       pillars: profile?.pillars,
       elements: profile?.elements,
@@ -1630,13 +1703,14 @@ function buildChatPrompt({ profile, report, history, message }) {
     "",
     [
       "请直接回答用户的新问题，不要重新生成整份报告。",
-      "请用白话回答，像在认真给朋友解释，不要堆玄学术语；必须先给结论，再解释依据。",
-      "请固定输出 5 段：",
-      "【直接结论】正面回答用户到底该怎么看、该不该做、需要注意什么。",
-      "【为什么这么看】结合日主/四柱、五行强弱、六爻卦象/变爻、星术参照或流年中至少 2 类证据，并把术语翻译成人话。",
-      "【你心里真正卡的点】解释可能的核心需要、压力模式、边界议题或认知-情绪-行为链路。",
-      "【接下来怎么做】给 2-3 个 7 天内能做的小动作，并说明观察什么反馈。",
-      "【留给你的问题】给 1-2 个能帮助用户继续判断的问题。",
+      "请先按 personalizationAnchors.intent 判断问题类型，并围绕该类型切换分析重心。",
+      "请用白话回答，像在认真给朋友解释，不要堆玄学术语；必须先给倾向性结论，再解释依据。",
+      "不要固定输出【直接结论】【为什么这么看】等模板标题；可用自然段，也可用 2-4 个短标题，但标题要贴合本次问题。",
+      "回答中必须明确引用至少 3 个具体资料点，例如：日柱/日主、月柱或时柱十神、五行最强最弱、本卦变卦/动爻、流年主题、mysticSystems 的相关层。",
+      "不能只说“你的命盘显示”“适合小步验证”。要说清楚：这个人的哪一柱、哪一类五行、哪一个卦象变化，为什么会落到这个问题上。",
+      "如果用户问“该不该/能不能/会不会/什么时候”，要给出偏向判断和前置条件，不要只说看情况。",
+      "如果用户问感情，必须落到关系回应、边界、沟通或止损；如果问事业，必须落到筹码、岗位、行动窗口或谈判；如果问财运，必须落到现金流、合约、试错额度和风险边界。",
+      "建议要具体到场景、话术、观察指标或时间窗口；不要空泛说“多沟通、稳一点、提升自己”。",
       "不要诊断，不做确定性命运断言；涉及钱、健康、重大关系时提醒用户用现实证据复核。",
     ].join("\n"),
   ].join("\n");
@@ -1820,22 +1894,86 @@ function reportContext(profile) {
   return { user, pillars, elements, strongest, weakest, primary, changed, sixYao, psychology, stellar, mysticSystems, firstFlow, trueSolarTime };
 }
 
+function pillarLabel(pillar = {}) {
+  const hidden = Array.isArray(pillar.hidden) && pillar.hidden.length ? `藏干${pillar.hidden.join("")}` : "";
+  const tenGod = [pillar.shiShenGan, ...(Array.isArray(pillar.shiShenZhi) ? pillar.shiShenZhi : [])].filter(Boolean).join("/");
+  return [pillar.name, pillar.wuXing || pillar.element, tenGod ? `十神${tenGod}` : "", hidden].filter(Boolean).join("，");
+}
+
+function profileAnchors(profile = {}, message = "") {
+  const { user, pillars, strongest, weakest, primary, changed, sixYao, psychology, stellar, mysticSystems, firstFlow, trueSolarTime } = reportContext(profile);
+  const intent = inferQuestionIntent(message || user.question || "", user.focus);
+  const layers = mysticSystems.layers || {};
+  return {
+    question: message || user.question || "",
+    intent,
+    fourPillars: {
+      year: pillarLabel(pillars.year),
+      month: pillarLabel(pillars.month),
+      day: pillarLabel(pillars.day),
+      hour: pillarLabel(pillars.hour),
+      dayMaster: pillars.dayMaster || pillars.day?.stem || "",
+    },
+    elementContrast: `${elementPlainLine(strongest, "ability")}；${elementPlainLine(weakest, "lack")}。`,
+    hexagramSignal: `${primary.name || "本卦"} -> ${changed.name || "变卦"}；${sixYao.movement || ""}；动爻主题：${sixYao.lineTheme || "未定"}。`,
+    timingSignal: firstFlow.year ? `${firstFlow.year} 年 ${firstFlow.ganzhi || ""}，主题：${firstFlow.theme || ""}` : "",
+    psychologySignal: `核心需要：${psychology.coreNeed || "未定"}；压力模式：${psychology.stressPattern || "未定"}；调节方式：${psychology.regulation || "未定"}。`,
+    stellarSignal: stellar.sign ? `${stellar.sign}：优势${stellar.gift || "未定"}，压力影子${stellar.shadow || "未定"}。` : "",
+    relevantMysticLayers: [
+      layers.bazi?.userQuestionAnchor ? `八字：${layers.bazi.userQuestionAnchor}` : "",
+      layers.liuyao?.plain ? `六爻：${layers.liuyao.plain}` : "",
+      layers.meihua?.plain ? `梅花：${layers.meihua.plain}` : "",
+      layers.qimen?.plain ? `奇门：${layers.qimen.plain}` : "",
+      layers.yinyuan?.active && layers.yinyuan?.plain ? `姻缘：${layers.yinyuan.plain}` : "",
+      layers.tarot?.plain ? `塔罗：${layers.tarot.plain}` : "",
+    ].filter(Boolean).slice(0, 4),
+    trueSolarTime: trueSolarTime.applied ? `已按${trueSolarTime.place?.name || "出生地"}真太阳时 ${trueSolarTime.correctedTime} 校正。` : "",
+  };
+}
+
+function intentSpecificReading(profile = {}, message = "") {
+  const anchors = profileAnchors(profile, message);
+  const { user, pillars, strongest, weakest, primary, changed, sixYao, psychology, firstFlow } = reportContext(profile);
+  const question = message || user.question || "当前问题";
+  const dayMaster = pillars.dayMaster || pillars.day?.stem || "日主";
+  const month = pillars.month?.name || "月柱";
+  const day = pillars.day?.name || "日柱";
+  const hour = pillars.hour?.name || "时柱";
+  const base = `你问的是“${question}”，系统识别为${anchors.intent.label}。这类问题不能只看整体运势，要重点看${anchors.intent.evidenceFocus}。你的盘面里，日柱${day}、月柱${month}、时柱${hour}，${dayMaster}日主；${anchors.elementContrast}${anchors.hexagramSignal}`;
+  const yearWindow = firstFlow.year ? `流年上，${firstFlow.year} 年主题为${firstFlow.theme}，更适合把判断落到一个具体窗口。` : "";
+  const risk = `心理层面最容易被${psychology.stressPattern || "不确定感"}带偏，所以判断时要区分“我真正想要什么”和“我只是想缓解焦虑”。`;
+
+  const map = {
+    career_move: `事业变动上，更关键的不是立刻跳不跳，而是你有没有谈判筹码和可见成果。${strongest.element}强说明你有一块容易调用的能力，但${weakest.element}弱会让承接、边界或复盘拖后腿；所以更适合先整理成果、试投或谈条件，再决定是否正式离开。${sixYao.lineTheme ? `动爻落在${sixYao.lineTheme}，这通常对应当下要先处理的职场环节。` : ""}${yearWindow}`,
+    love_reconcile: `复合问题上，不要只看“他/她会不会回来”，而要看关系是否还有稳定回应。日支${pillars.day?.branch || ""}是长期相处位，配合${primary.name || "本卦"}到${changed.name || "变卦"}，更像是关系会被沟通方式和边界改变。适合先用一次低压沟通确认对方是否愿意承担关系成本；如果只给情绪、不改行动，就要设止损线。`,
+    love_future: `姻缘问题上，重点不是“有没有桃花”，而是你适合筛选什么样的人。${dayMaster}日主配合${strongest.element}/${weakest.element}的五行差异，说明你在关系里一边需要${psychology.coreNeed || "稳定回应"}，一边要避免被${psychology.stressPattern || "不安感"}推着走。可观察对方是否稳定回应、是否尊重边界、是否能一起处理现实安排。`,
+    wealth_choice: `财运和资源选择上，先守底盘，再做试错。${strongest.element}强是可用优势，${weakest.element}弱是风险来源；如果现在要投资、副业或合作，适合先设试错额度和退出条件。${primary.name || "本卦"}变${changed.name || "变卦"}提示局面会动，但不是越动越好，关键是现金流、合约和责任边界要写清楚。`,
+    study_exam: `学习考试上，重点是方法和节奏，而不是单纯靠意志硬撑。${month}反映当下环境压力，${hour}看长期规划；${strongest.element}能帮你启动，${weakest.element}则提示最容易漏掉的习惯。建议把目标拆成每日输出、错题/作品复盘和一周一次模拟反馈。`,
+    health_rhythm: `身心节奏上，这份盘不做医疗判断，但能提醒你压力如何影响选择。${weakest.element}弱说明恢复、秩序或情绪流动需要补，${psychology.stressPattern || "压力模式"}会让你在疲惫时更容易把事情想绝。先把睡眠、饮食、信息摄入和沟通边界稳定下来；若长期不适，优先找线下专业支持。`,
+    decision_timing: `选择和时机上，卦象比五行更关键：${primary.name || "本卦"}到${changed.name || "变卦"}说明事情有变化点，${sixYao.lineTheme || "动爻位置"}就是先要处理的环节。现在更适合先确认前置条件：资源是否够、对方是否回应、最坏结果能否承受，再决定推进或暂缓。`,
+  };
+
+  return [base, map[anchors.intent.key] || `${anchors.intent.answerMode}。${anchors.intent.actionFrame}。${yearWindow}`, risk].filter(Boolean).join("\n");
+}
+
 function buildPlainSummary(profile = {}) {
   const { user, pillars, strongest, weakest, primary, changed, sixYao, psychology, firstFlow, trueSolarTime } = reportContext(profile);
   const focus = user.focusLabel || "当前问题";
   const question = user.question ? `你问的“${user.question}”` : focus;
   const dayMaster = pillars.dayMaster || pillars.day?.stem || "";
+  const intent = user.questionIntent || inferQuestionIntent(user.question || "", user.focus);
   const strongText = elementPlainLine(strongest, "ability");
   const weakText = elementPlainLine(weakest, "lack");
-  const weakAction = elementExplain(weakest.element).action;
+  const nextAction = intentActionText(intent, weakest.element);
+  const realityCheck = intentRealityCheck(intent);
   const hexagram = primary.name && changed.name ? `${primary.name}变${changed.name}` : (sixYao.movement || "卦象变化");
-  const flow = firstFlow.year ? `${firstFlow.year}年适合分阶段验证` : "近期适合先小步验证";
+  const flow = firstFlow.year ? `${firstFlow.year}年适合分阶段处理` : "近期先围绕当前问题建立一个清晰反馈窗口";
   const solar = trueSolarTime.applied ? `本盘已按${trueSolarTime.place?.name || "出生地"}真太阳时校正。` : "";
   return [
-    `结论：这件事先别急着定输赢，更适合稳住节奏后小步推进。${dayMaster ? `命盘里${dayMaster}日主只是底色，不是最终答案。` : ""}`,
-    `为什么：${strongText}；${weakText}。简单说，你有能用的优势，也有需要刻意补的短板。`,
-    `注意：${question}最容易被${psychology.stressPattern || "不确定感和急于求结果"}带偏，别在情绪很满时立刻拍板。`,
-    `下一步：${flow}，先做一个能拿到反馈的小动作；${weakAction}。${hexagram ? `卦象提示变化点在“先试再调”。` : ""}${solar}`,
+    `结论：${question}属于${intent.label}，重点不是套整体运势，而是看${intent.evidenceFocus}。${dayMaster ? `${dayMaster}日主是你的判断底色。` : ""}`,
+    `盘面依据：${strongText}；${weakText}。${hexagram ? `卦象为${hexagram}，动点在${sixYao.lineTheme || "变化位置"}。` : ""}`,
+    `注意：这类问题容易被${psychology.stressPattern || "不确定感和急于求结果"}带偏，所以要看${realityCheck}。`,
+    `下一步：${nextAction}。${flow}。${solar}`,
   ].map((line) => line.trim()).filter(Boolean).join("\n");
 }
 
@@ -1890,7 +2028,7 @@ function sectionFallback(profile, title, existing = "") {
     感情与人际: `关系里要少猜测，多看稳定回应。${primary.name || "卦象"}强调互动的持续性，${changed.name || "变卦"}则提醒变化会来自沟通方式和边界。心理上要把“我感到不安”和“对方一定如何”分开，先表达自己的需要，再观察对方是否愿意共同承担关系成本。适合主动表达真实需求，但不宜用情绪压迫对方给出立刻承诺。`,
     财运与资源: `财运部分更偏向“资源管理”而不是突发暴富。适合通过专业能力、长期客户、稳定项目或副业试水积累收入。心理风险在于用消费、冲动投资或过度承诺来缓解焦虑；现实风险在于高估短期收益、低估时间成本。建议先做预算边界，再把小规模尝试变成可复盘数据。`,
     身心与节奏: `身心状态与节奏直接影响判断力。${weakest.element}较弱时，容易在疲惫、焦虑或信息过载时做决定。建议把休息、运动、饮食和工作边界当作基础配置，并用${psychology.regulation || "稳定节奏"}作为日常调节方向；涉及身体问题请以专业医疗意见为准。`,
-    重点问题: `针对你的问题“${user.question || "最近整体运势如何"}”，先给结论：不要直接用“好/不好、成/不成”来判断，更适合先做小步验证。命理上看${primary.name || "本卦"}到${changed.name || "变卦"}，意思是局面会随行动和沟通改变；心理上，你需要分清自己是在追求${psychology.coreNeed || "真实价值"}，还是在躲避${psychology.stressPattern || "不确定感"}。现实上，适合推进的条件是目标明确、资源清楚、替代方案存在、关键沟通有记录；不适合在情绪高点或被别人催促时立刻拍板。${firstFlow.year ? `${firstFlow.year} 年主题为${firstFlow.theme}，` : ""}可以把机会拆成 7 天或 30 天的小测试。`,
+    重点问题: intentSpecificReading(profile),
     趋吉避凶: `趋吉避凶的关键，是把命盘提示转化为现实动作：强项要形成稳定输出，弱项要补足机制；重要决定要留缓冲期；涉及金钱、健康和长期关系时，不把单次解读当成依据。每次行动前可自问：我现在的选择来自事实、价值，还是来自焦虑？我能做的最小验证是什么？用报告做自我复盘，会比追求绝对答案更有价值。`,
   };
   const expansions = {
@@ -1943,10 +2081,12 @@ function normalizeReport(report, profile) {
   const normalized = normalizeReportBrand(report && typeof report === "object" ? report : {});
   const { user, pillars, strongest, weakest, primary, changed, sixYao, psychology, stellar, mysticSystems, firstFlow, trueSolarTime } = reportContext(profile);
   const mysticLayers = mysticSystems.layers || {};
+  const intent = user.questionIntent || inferQuestionIntent(user.question || "", user.focus);
 
   normalized.summary = ensureRichText(normalized.summary, [
     trueSolarTime.applied ? `本次采用真太阳时校正：${trueSolarTime.place?.name || "出生地"} ${trueSolarTime.correctedTime}，较填写时间${formatOffset(trueSolarTime.offsetMinutesExact)}。` : "",
-    `这份报告的核心不是告诉你“命定如此”，而是帮你看清：哪些能力现在能用，哪些地方容易卡住，下一步该怎么验证。`,
+    `这份报告先按“${intent.label}”来解，不把你的问题套成泛泛整体运势。`,
+    `核心不是告诉你“命定如此”，而是帮你看清：哪些能力现在能用，哪些地方容易卡住，下一步该怎么验证。`,
     `${user.name || "你"}的日主为${pillars.dayMaster || "日主"}，这是命盘底色；${elementPlainLine(strongest, "ability")}，${elementPlainLine(weakest, "lack")}。`,
     `${sixYao.movement || `${primary.name || "本卦"}到${changed.name || "变卦"}`}的意思是事情不是一锤定音，更适合用阶段验证、稳定输出和复盘来推动。`,
     mysticSystems.version ? `八字、六爻/梅花、奇门、姻缘、风水和塔罗只是不同观察角度：共同指向才放大，冲突之处要用现实证据复核。` : "",
@@ -2107,9 +2247,13 @@ function buildReportEnhancementPrompt({ profile, report }) {
     "请基于资料包增强已有报告的关键内容。",
     "只输出 JSON，字段必须符合 outputSchema。",
     "不要重写全部章节，不要输出长篇总报告。",
+    "必须使用 personalizationAnchors 和 questionSpecificReadingSeed；重点问题第一段要直接回答用户原话。",
+    "增强后的内容要比 currentReport 更具体，必须点名具体四柱、五行、卦象或流年信息。",
     "",
     JSON.stringify({
       profile: compactProfileForPrompt(profile),
+      personalizationAnchors: profileAnchors(profile),
+      questionSpecificReadingSeed: intentSpecificReading(profile),
       currentReport: {
         plainSummary: report.plainSummary,
         summary: report.summary,
@@ -2299,15 +2443,25 @@ function localChatReply({ profile, report, message }) {
   }
 
   const { user, strongest, weakest, primary, changed, sixYao, psychology, stellar, firstFlow, trueSolarTime } = reportContext(profile || {});
-  const focus = user.focusLabel || "当前问题";
-  const summary = String(report?.summary || "").slice(0, 90);
   const solarNote = trueSolarTime.applied ? `本盘已按${trueSolarTime.place?.name || "出生地"}真太阳时 ${trueSolarTime.correctedTime} 校正。` : "";
+  const anchors = profileAnchors(profile || {}, question);
+  const seedReading = intentSpecificReading(profile || {}, question);
+  const nextAction = {
+    career_move: "接下来别只问“要不要跳”，先做三件事：整理一份能展示成果的清单，试投 3 个目标岗位，和一个可信同行聊薪资与岗位真实情况。反馈比脑内推演更可靠。",
+    love_reconcile: "如果你想联系对方，建议只发一次低压信息：说明你想沟通的具体事，不逼对方立刻表态。观察对方是否愿意持续回应，而不是只看一句情绪化回复。",
+    love_future: "感情上先看稳定回应：对方是否尊重边界、是否愿意一起解决现实安排、是否只在暧昧里给情绪价值。别把短期热度当长期承诺。",
+    wealth_choice: "钱的问题先设底线：不可动的钱、可试错的钱、最坏能承受的亏损分别写清楚。凡是让你必须立刻付款或无法复盘成本的机会，都先慢一步。",
+    study_exam: "学习上别只靠意志。把目标拆成每日输出、每周复盘和一次模拟反馈；如果连续三天完不成，说明不是不努力，是方法或环境要改。",
+    health_rhythm: "身心问题先不做医疗判断。你可以先记录 7 天睡眠、饮食、信息摄入和情绪触发点；如果压力明显影响生活，优先找线下专业支持。",
+    decision_timing: "选择题先列前置条件：资源够不够、对方/环境是否有真实回应、最坏结果能不能承受。满足两项以上再推进，否则先谈条件或暂缓。",
+  }[anchors.intent.key] || anchors.intent.actionFrame;
+
   return [
-    `【直接结论】\n你问的是“${question || focus}”。简单说，这件事不要只看“成不成”，更要看你有没有准备好资源、沟通和退路。现在适合先小步验证，不适合在情绪很满的时候一次性拍板。报告主线是：${summary || `${strongest.element}较显、${weakest.element}需要补足。`}`,
-    `【为什么这么看】\n${solarNote}日主落在${profile?.pillars?.day?.name || "日柱"}，五行最强是${strongest.element}、最弱是${weakest.element}。白话说，强的部分是你现在比较容易拿出来用的能力，弱的部分就是容易拖你后腿的短板。卦象为${primary.name || "本卦"}之${changed.name || "变卦"}，${sixYao.movement || "有动爻变化"}，重点在${sixYao.lineTheme || "变化位置"}；意思是局面不是死的，会被你的沟通方式、准备程度和行动节奏影响。${firstFlow.year ? `${firstFlow.year} 年流年主题是${firstFlow.theme}，更适合分阶段验证。` : ""}`,
-    `【你心里真正卡的点】\n你更深层可能在意${psychology.coreNeed || "安全感、价值感或方向感"}，压力上来时容易${psychology.stressPattern || "把不确定感放大"}。这不是“想太多”，而是你在提醒自己：需要更多证据、边界和可控感。${stellar.sign ? `${stellar.sign}的星术参照也提示你可以用“${stellar.practice}”来稳定节奏。` : ""}`,
-    "【接下来怎么做】\n先做三件小事：第一，把你能控制的部分写成 3 条行动，不写对方或环境必须怎样；第二，设一个 7 天内能验证的小动作，比如一次沟通、一次资料整理、一次试探性推进；第三，涉及钱、健康或长期关系时，至少用两条现实证据复核，不要在情绪高点立刻决定。",
-    "【留给你的问题】\n我现在是在靠近真实价值，还是在躲避不确定？如果只允许我做一个最稳的动作，它应该是什么？\n\n以上仅供娱乐与自我反思，不替代心理治疗、医疗、法律或投资建议。",
+    `你这次问的是“${question || user.focusLabel || "当前问题"}”，我会按${anchors.intent.label}来看，不按通用运势套。`,
+    seedReading,
+    `${solarNote}再补一句心理层面的解释：你真正卡住的可能不是不知道答案，而是${psychology.coreNeed || "想要确定感"}和${psychology.stressPattern || "不确定压力"}在拉扯。${stellar.sign ? `${stellar.sign}的星术侧影也提示，压力下容易${stellar.shadow || "节奏不稳"}，所以要把感受和事实分开。` : ""}`,
+    `具体做法：${nextAction}`,
+    `你可以继续追问得更具体一点，比如把对象、岗位、金额、时间点或两个选项告诉我，我就能按这张盘继续往下拆。以上只作娱乐和自我反思，涉及医疗、法律、投资或重大关系决定时，要用现实证据和专业意见复核。`,
   ].join("\n\n");
 }
 
