@@ -11,7 +11,7 @@
     }
   ],
   "vars": {
-    "OPENAI_MODEL": "kimi-k2.6",
+    "OPENAI_MODEL": "kimi-k2.5",
     "OPENAI_BASE_URL": "https://api.moonshot.cn/v1",
     "OPENAI_API_STYLE": "chat",
     "MODEL_PROVIDER": "Kimi",
