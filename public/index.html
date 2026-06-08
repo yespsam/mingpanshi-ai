@@ -6,7 +6,7 @@
     <title>命盘师 | AI 命盘解析</title>
     <meta name="description" content="命盘师：AI 命理引擎，结合周易命盘、五行卦象与对话追问，生成事业、感情、财运、流年等多维分析。" />
     <link rel="icon" href="/logo.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=20260608-4" />
+    <link rel="stylesheet" href="/styles.css?v=20260608-5" />
   </head>
   <body>
     <header class="site-header">
@@ -340,6 +340,10 @@ console.log(report.pillars);</code></pre>
             </div>
 
             <div class="report-content" id="reportContent" hidden>
+              <figure class="report-image-shell">
+                <img id="reportImage" alt="AI 命盘报告图" />
+                <figcaption>AI 命盘报告已整理为单张图片，可直接保存或分享。</figcaption>
+              </figure>
               <div class="tag-row" id="tagRow"></div>
               <div class="report-brief" id="reportBrief"></div>
               <nav class="report-nav" id="reportNav" aria-label="报告目录"></nav>
@@ -389,7 +393,7 @@ console.log(report.pillars);</code></pre>
                 </div>
               </article>
               <div class="result-actions">
-                <button class="secondary-button" id="saveBtn" type="button">保存报告</button>
+                <button class="secondary-button" id="saveBtn" type="button">保存报告图</button>
                 <button class="secondary-button" id="openReportBtn" type="button">打开完整报告</button>
                 <button class="secondary-button" id="againBtn" type="button">再次解析</button>
                 <button class="primary-button" id="shareBtn" type="button">分享报告</button>
@@ -532,7 +536,7 @@ console.log(report.pillars);</code></pre>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="/report-view.js?v=20260608-4"></script>
-    <script src="/app.js?v=20260608-4"></script>
+    <script src="/report-view.js?v=20260608-5"></script>
+    <script src="/app.js?v=20260608-5"></script>
   </body>
 </html>

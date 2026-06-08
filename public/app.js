@@ -33,6 +33,7 @@ const reportTitle = $("#reportTitle");
 const summary = $("#summary");
 const resultMeta = $("#resultMeta");
 const tagRow = $("#tagRow");
+const reportImage = $("#reportImage");
 const reportBrief = $("#reportBrief");
 const reportNav = $("#reportNav");
 const pillarList = $("#pillarList");
@@ -75,6 +76,7 @@ let currentConversationId = "";
 let pendingAction = null;
 let enhancementRequestId = 0;
 let lastPosterText = "";
+let lastReportImageUrl = "";
 
 const elementColors = {
   木: "var(--green)",
@@ -350,6 +352,186 @@ function plainSummaryText(profile = {}, report = {}) {
     `注意：${focus}最容易被${stress}带偏，别在情绪很满时立刻拍板。`,
     `下一步：${flow}，先做一个能拿到反馈的小动作；${weakAction}。`,
   ].join("\n");
+}
+
+function wrapSvgText(value, maxChars = 24, maxLines = 2) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return [];
+  const lines = [];
+  let current = "";
+  for (const char of text) {
+    current += char;
+    if (current.length >= maxChars || /[。！？；]/.test(char)) {
+      lines.push(current.trim());
+      current = "";
+      if (lines.length >= maxLines) break;
+    }
+  }
+  if (current && lines.length < maxLines) lines.push(current.trim());
+  if (text.length > lines.join("").length && lines.length) {
+    lines[lines.length - 1] = `${lines[lines.length - 1].replace(/[，。；、]$/, "")}…`;
+  }
+  return lines;
+}
+
+function svgText(lines, x, y, options = {}) {
+  const {
+    size = 24,
+    fill = "#dfffe9",
+    weight = 500,
+    lineHeight = Math.round(size * 1.45),
+    anchor = "start",
+    family = "PingFang SC, Microsoft YaHei, sans-serif",
+    letterSpacing = 0,
+  } = options;
+  const safeLines = Array.isArray(lines) ? lines : [lines];
+  return `
+    <text x="${x}" y="${y}" fill="${fill}" font-size="${size}" font-weight="${weight}" font-family="${family}" text-anchor="${anchor}" letter-spacing="${letterSpacing}">
+      ${safeLines.map((line, index) => `<tspan x="${x}" dy="${index === 0 ? 0 : lineHeight}">${escapeHtml(line)}</tspan>`).join("")}
+    </text>
+  `;
+}
+
+function buildReportImageUrl(profile = {}, report = {}, payload = {}) {
+  const width = 720;
+  const height = 1040;
+  const pillars = profile.pillars || {};
+  const elements = profile.elements || [];
+  const elementOrder = ["木", "火", "土", "金", "水"];
+  const byElement = new Map(elements.map((item) => [item.element, Math.max(0, Number(item.percent) || 0)]));
+  const values = elementOrder.map((element) => ({ element, percent: byElement.get(element) || 0 }));
+  const strongest = values.reduce((max, item) => (item.percent > max.percent ? item : max), values[0] || {});
+  const weakest = values.reduce((min, item) => (item.percent < min.percent ? item : min), values[0] || {});
+  const maxScale = Math.max(30, ...values.map((item) => item.percent));
+  const radarCenter = { x: 520, y: 585 };
+  const radarRadius = 104;
+  const radarPoint = (index, scale = 1) => {
+    const angle = (-90 + index * 72) * Math.PI / 180;
+    return [
+      Number((radarCenter.x + Math.cos(angle) * radarRadius * scale).toFixed(1)),
+      Number((radarCenter.y + Math.sin(angle) * radarRadius * scale).toFixed(1)),
+    ];
+  };
+  const radarPolygon = values
+    .map((item, index) => radarPoint(index, Math.min(1, item.percent / maxScale)).join(","))
+    .join(" ");
+  const radarRings = [0.34, 0.67, 1]
+    .map((scale) => `<polygon points="${elementOrder.map((_, index) => radarPoint(index, scale).join(",")).join(" ")}" fill="none" stroke="rgba(0,255,112,.18)" stroke-width="1"/>`)
+    .join("");
+  const radarAxes = elementOrder
+    .map((_, index) => {
+      const [x, y] = radarPoint(index, 1);
+      return `<line x1="${radarCenter.x}" y1="${radarCenter.y}" x2="${x}" y2="${y}" stroke="rgba(0,255,112,.16)" stroke-width="1"/>`;
+    })
+    .join("");
+  const radarLabels = values
+    .map((item, index) => {
+      const [x, y] = radarPoint(index, index === 0 ? 0.98 : 1.1);
+      return svgText(`${item.element}${item.percent}%`, x, y, {
+        size: 20,
+        fill: "#ccffe0",
+        weight: 800,
+        anchor: "middle",
+        family: "SFMono-Regular, Menlo, Consolas, PingFang SC, monospace",
+      });
+    })
+    .join("");
+  const summaryLines = plainSummaryText(profile, report)
+    .split(/\n+/)
+    .flatMap((line) => wrapSvgText(line.replace(/^(结论|为什么|注意|下一步)：/, ""), 24, 1))
+    .slice(0, 4);
+  const focus = profile.user?.questionIntent?.label || profile.user?.focusLabel || "命盘解析";
+  const question = profile.user?.question || "当前问题";
+  const hexagram = profile.hexagrams?.primary?.name && profile.hexagrams?.changed?.name
+    ? `${profile.hexagrams.primary.name} → ${profile.hexagrams.changed.name}`
+    : profile.hexagrams?.primary?.name || "--";
+  const annual = profile.annualFlow?.[0]
+    ? `${profile.annualFlow[0].year} ${profile.annualFlow[0].theme || "流年"}`
+    : "近期小步验证";
+  const advice = (report.advice || [])
+    .slice(0, 3)
+    .map((item) => compactText(item, 32));
+  const skillTags = posterKeywords(profile, report).slice(0, 4);
+  const pillarItems = [
+    ["年柱", pillars.year?.name || "--"],
+    ["月柱", pillars.month?.name || "--"],
+    ["日柱", pillars.day?.name || "--"],
+    ["时柱", pillars.hour?.name || "--"],
+  ];
+  const provider = payload.provider || "Kimi";
+  const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#001207"/>
+      <stop offset=".52" stop-color="#020604"/>
+      <stop offset="1" stop-color="#071b0d"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".7" cy=".15" r=".75">
+      <stop offset="0" stop-color="#25ff82" stop-opacity=".22"/>
+      <stop offset=".48" stop-color="#25ff82" stop-opacity=".04"/>
+      <stop offset="1" stop-color="#25ff82" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M 28 0 L 0 0 0 28" fill="none" stroke="rgba(0,255,112,.08)" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="${width}" height="${height}" rx="34" fill="url(#bg)"/>
+  <rect width="${width}" height="${height}" rx="34" fill="url(#glow)"/>
+  <rect x="24" y="24" width="${width - 48}" height="${height - 48}" rx="26" fill="url(#grid)" opacity=".7"/>
+  <rect x="34" y="34" width="${width - 68}" height="${height - 68}" rx="24" fill="none" stroke="rgba(0,255,112,.38)" stroke-width="2"/>
+  ${svgText("<命盘师/>", 58, 76, { size: 24, fill: "#25ff82", weight: 900, family: "SFMono-Regular, Menlo, Consolas, monospace" })}
+  ${svgText(`${provider} AI 命盘报告`, 58, 124, { size: 40, fill: "#f2fff6", weight: 900 })}
+  ${svgText(`${profile.user?.name || "你的"} · ${focus}`, 58, 166, { size: 24, fill: "#a8f7c2", weight: 700 })}
+  <rect x="470" y="58" width="130" height="42" rx="21" fill="rgba(0,255,112,.13)" stroke="rgba(0,255,112,.42)"/>
+  ${svgText("REPORT", 535, 86, { size: 18, fill: "#25ff82", weight: 900, anchor: "middle", family: "SFMono-Regular, Menlo, Consolas, monospace" })}
+
+  <rect x="58" y="198" width="604" height="176" rx="20" fill="rgba(0,0,0,.44)" stroke="rgba(0,255,112,.26)"/>
+  ${svgText("大白话结论", 82, 238, { size: 22, fill: "#25ff82", weight: 900, family: "SFMono-Regular, Menlo, Consolas, monospace" })}
+  ${svgText(summaryLines, 82, 282, { size: 23, fill: "#dfffe9", weight: 650, lineHeight: 32 })}
+
+  <rect x="58" y="404" width="300" height="228" rx="20" fill="rgba(0,0,0,.34)" stroke="rgba(0,255,112,.2)"/>
+  ${svgText("四柱命盘", 82, 444, { size: 22, fill: "#25ff82", weight: 900, family: "SFMono-Regular, Menlo, Consolas, monospace" })}
+  ${pillarItems.map(([label, value], index) => {
+    const y = 490 + index * 40;
+    return `
+      ${svgText(label, 84, y, { size: 18, fill: "#86cfa0", weight: 700 })}
+      ${svgText(value, 310, y, { size: 24, fill: "#f2fff6", weight: 900, anchor: "end", family: "SFMono-Regular, Menlo, Consolas, PingFang SC, monospace" })}
+    `;
+  }).join("")}
+
+  <rect x="386" y="404" width="276" height="340" rx="20" fill="rgba(0,0,0,.34)" stroke="rgba(0,255,112,.2)"/>
+  ${svgText("五行五维图", 414, 444, { size: 22, fill: "#25ff82", weight: 900, family: "SFMono-Regular, Menlo, Consolas, monospace" })}
+  <g>${radarRings}${radarAxes}<polygon points="${radarPolygon}" fill="rgba(37,255,130,.22)" stroke="#25ff82" stroke-width="3"/>${radarLabels}</g>
+  ${svgText(`${strongest.element || "--"}最强 · ${weakest.element || "--"}需补`, 520, 730, { size: 20, fill: "#f2fff6", weight: 900, anchor: "middle" })}
+
+  <rect x="58" y="664" width="300" height="148" rx="20" fill="rgba(0,0,0,.34)" stroke="rgba(0,255,112,.2)"/>
+  ${svgText("关键盘面", 82, 706, { size: 22, fill: "#25ff82", weight: 900, family: "SFMono-Regular, Menlo, Consolas, monospace" })}
+  ${svgText(wrapSvgText(`问题：${question}`, 18, 2), 82, 748, { size: 20, fill: "#dfffe9", weight: 650, lineHeight: 30 })}
+  ${svgText(compactText(`卦象：${hexagram}`, 22), 82, 798, { size: 18, fill: "#9fe8b7", weight: 700 })}
+
+  <rect x="58" y="840" width="604" height="112" rx="20" fill="rgba(0,255,112,.09)" stroke="rgba(0,255,112,.28)"/>
+  ${svgText("下一步", 82, 880, { size: 22, fill: "#25ff82", weight: 900, family: "SFMono-Regular, Menlo, Consolas, monospace" })}
+  ${svgText((advice.length ? advice : [`围绕${annual}，先做一个能拿到反馈的小动作。`]).slice(0, 2).flatMap((item) => wrapSvgText(item, 30, 1)), 82, 920, { size: 21, fill: "#f2fff6", weight: 700, lineHeight: 30 })}
+
+  <g>
+    ${skillTags.map((tag, index) => {
+      const x = 386 + (index % 2) * 128;
+      const y = 768 + Math.floor(index / 2) * 44;
+      return `<rect x="${x}" y="${y}" width="112" height="30" rx="15" fill="rgba(0,255,112,.08)" stroke="rgba(0,255,112,.34)"/>${svgText(compactText(tag, 8), x + 56, y + 21, { size: 15, fill: "#25ff82", weight: 800, anchor: "middle" })}`;
+    }).join("")}
+  </g>
+
+  ${svgText("仅供娱乐与自我反思，不作为医疗、法律、投资或重大决策依据。", 58, 1010, { size: 16, fill: "#81b891", weight: 600 })}
+</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function renderReportImage(profile = {}, report = {}, payload = {}) {
+  if (!reportImage) return;
+  lastReportImageUrl = buildReportImageUrl(profile, report, payload);
+  reportImage.src = lastReportImageUrl;
+  reportImage.alt = `${profile.user?.name || "用户"}的 AI 命盘报告图`;
 }
 
 function mysticSkillRows(profile = {}) {
@@ -833,7 +1015,7 @@ function storeLatestReport(payload) {
 function renderFullReadableReport(payload) {
   if (!fullReportSection || !fullReportBody || !window.MPS_REPORT_VIEW) return;
   fullReportBody.innerHTML = window.MPS_REPORT_VIEW.renderReadableReport(payload);
-  fullReportSection.hidden = false;
+  fullReportSection.hidden = true;
 }
 
 function enhancementStatus(payload = {}) {
@@ -887,9 +1069,10 @@ function renderReport(payload) {
   const hexagram = profile.hexagrams?.primary;
 
   reportTitle.textContent = normalizedReportTitle(report.title);
-  summary.textContent = plainSummaryText(profile, report) || report.summary || "报告已生成。";
+  summary.textContent = compactText((plainSummaryText(profile, report) || report.summary || "报告已生成。").split(/\n+/)[0], 120);
   renderResultMeta(payload);
   renderTags([...(report.tags || []), hexagram?.name, provider || "", profile.stellar?.sign]);
+  renderReportImage(profile, report, payload);
   renderReportBrief(profile, report, payload);
   renderPillarCode(profile, report);
   renderPillars(profile);
@@ -940,6 +1123,8 @@ function resetView() {
   currentConversationId = "";
   lastReportText = "";
   lastPosterText = "";
+  lastReportImageUrl = "";
+  if (reportImage) reportImage.removeAttribute("src");
   if (growthPanel) growthPanel.hidden = true;
   if (posterPreview) posterPreview.innerHTML = "";
   if (fullReportBody) fullReportBody.innerHTML = "";
@@ -989,6 +1174,14 @@ async function copySharePayload(channel) {
 }
 
 function downloadReport() {
+  if (lastReportImageUrl) {
+    const anchor = document.createElement("a");
+    anchor.href = lastReportImageUrl;
+    anchor.download = `命盘师AI命盘报告图-${Date.now()}.svg`;
+    anchor.click();
+    showToast("报告图已保存。");
+    return;
+  }
   if (!lastReportText) {
     showToast("还没有可保存的报告。");
     return;

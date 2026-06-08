@@ -7370,3 +7370,76 @@ body,
     min-height: 300px;
   }
 }
+
+.report-image-shell {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid rgba(0, 255, 112, 0.22);
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 50% 10%, rgba(0, 255, 112, 0.12), transparent 34%),
+    rgba(0, 0, 0, 0.32);
+}
+
+.report-image-shell img {
+  display: block;
+  width: min(100%, 620px);
+  height: auto;
+  border-radius: 22px;
+  background: #001207;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42), 0 0 34px rgba(0, 255, 112, 0.12);
+}
+
+.report-image-shell figcaption {
+  color: var(--matrix-muted);
+  font-family: var(--font-code);
+  font-size: 12px;
+  text-align: center;
+}
+
+.result-card,
+.workspace-shell .result-card {
+  max-height: none;
+}
+
+.workspace-shell .result-card > .report-content {
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+}
+
+.report-content > .tag-row,
+.report-content > .report-brief,
+.report-content > .report-nav,
+.report-content > .report-summary-grid,
+.report-content > .report-grid,
+.report-content > .panel:not(.chat-panel) {
+  display: none !important;
+}
+
+.report-content > .result-actions {
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.report-content > .chat-panel {
+  margin-top: 2px;
+}
+
+@media (max-width: 720px) {
+  .report-image-shell {
+    padding: 8px;
+  }
+
+  .report-image-shell img {
+    border-radius: 16px;
+  }
+
+  .report-image-shell figcaption {
+    font-size: 11px;
+    line-height: 1.5;
+  }
+}
