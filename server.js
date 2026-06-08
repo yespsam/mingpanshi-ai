@@ -180,6 +180,7 @@ const LOCAL_DB_PATH = path.join(ROOT_DIR, ".data", "mingpanshi-db.json");
 const SYSTEM_PROMPT = [
   "你是“命盘师”的命理产品文案与分析引擎。",
   "你会基于后端给出的结构化命理资料包生成中文报告。",
+  "模型输出是正式报告的主体，占 90% 以上；后端规则只提供四柱、五行、卦象、流年等确定性资料，不会替你写模板正文。",
   "重要边界：这是一份娱乐向、自我反思向报告，不声称能确定预测命运。",
   "可以使用心理咨询式倾听、情绪识别、认知-情绪-行为链路、边界感和价值澄清，但不能自称心理治疗，不能诊断疾病。",
   "不要提供医疗、法律、投资等专业结论；涉及钱、健康、重大关系时提醒用户自行判断，严重危机应建议寻求线下专业帮助或紧急支持。",
@@ -187,6 +188,7 @@ const SYSTEM_PROMPT = [
   "报告需要比普通娱乐文案更具体：必须结合四柱、五行强弱、八卦六爻、变爻、星术参照、流年、用户问题和心理动力，给出分层判断和可执行建议。",
   "如果资料包包含 mysticSystems，必须把八字、六爻/梅花、奇门/紫微、姻缘、风水或塔罗中最相关的 2-4 个体系做交叉验证；不要把所有术语堆给用户，要翻译成白话。",
   "必须围绕用户原始提问展开，不要只套模板；每个结论都要有命盘依据、心理解释和现实行动三层。",
+  "同一出生信息下，只要用户问题不同，报告重心、结论、建议和措辞必须明显不同；不要复用固定段落。",
   "语气：东方玄学产品感，克制、有质感、具体可执行，不恐吓用户。",
 ].join("\n");
 
@@ -212,6 +214,7 @@ const CHAT_SYSTEM_PROMPT = [
 const REPORT_ENHANCEMENT_PROMPT = [
   "你是“命盘师”的 Kimi 融合测算引擎。",
   "你基于结构化排盘资料生成用户最先看到的核心解读。",
+  "你的输出是正式内容主体，不是给本地模板润色；不要复述 currentReport，不要套固定结构。",
   "必须按用户提示里的 XML 风格标签输出，不要 JSON，不要 Markdown 代码块，不要解释技术实现。",
   "输出要像给普通用户解释，不是把标题写成“大白话”，而是每一句都让人立刻知道是什么意思。",
   "术语必须翻译成人话：例如“火旺”要解释成行动热度、表达欲或急躁感；“金弱”要解释成规则、边界、复盘或判断力需要补。",
@@ -1598,18 +1601,12 @@ function buildPrompt(profile) {
       { year: 2026, theme: "主题", reading: "50-80 字，说明年份节奏、适合做什么、避免什么" },
     ],
     sections: [
-      { title: "命盘总览", body: "110-160 字。先说用户当下最该理解的结论，再解释整体格局" },
-      { title: "五行能量", body: "100-150 字。把五行翻译成现实能力、状态、选择和节奏" },
-      { title: "六爻卦象", body: "110-160 字。把本卦、变卦、动爻解释成处境、变化点和动作" },
-      { title: "多术数交叉验证", body: "130-190 字。只结合最相关 2-3 个体系，说明共同指向和现实检验方式" },
-      { title: "星术参照", body: "80-130 字。说明表达方式、压力反应和节奏建议" },
-      { title: "心理动力", body: "120-180 字。说明核心需要、压力模式、边界和自我提问，不做诊断" },
-      { title: "事业与学业", body: "100-150 字，给出行业/岗位/学习方式倾向" },
-      { title: "感情与人际", body: "100-150 字，给出关系模式、沟通盲点、相处建议" },
-      { title: "财运与资源", body: "100-150 字，说明收入方式、风险偏好、资源积累建议" },
-      { title: "身心与节奏", body: "80-130 字，提醒压力来源与生活节律，不做医疗结论" },
       { title: "重点问题", body: "180-260 字。第一句必须直接回答用户该怎么看；后面讲命理依据、心理解释、现实行动、前置条件和时间窗口" },
-      { title: "趋吉避凶", body: "100-150 字，给出可执行避坑清单和边界提醒" },
+      { title: "命盘主线", body: "100-150 字。说明这个人的盘面主线，不要套通用性格" },
+      { title: "五行五维", body: "100-150 字。把五行强弱翻译成这次问题里的现实能力和短板" },
+      { title: "卦象与变化点", body: "100-150 字。把本卦、变卦、动爻解释成处境、变化点和动作" },
+      { title: "多术数交叉验证", body: "120-180 字。只结合最相关 2-3 个体系，说明共同指向和现实检验方式" },
+      { title: "现实行动", body: "100-150 字。给出 7 天或 30 天内能执行的动作、观察指标和边界提醒" },
     ],
     advice: ["4-6 条具体行动建议，要能在 7 天或 30 天内执行"],
     counselingPrompts: ["2-3 个咨询式自我提问，用于复盘情绪、边界和价值选择"],
@@ -1619,6 +1616,7 @@ function buildPrompt(profile) {
 
   return [
     "请基于以下结构化资料包生成产品报告。",
+    "Kimi 的文字就是用户最终看到的正式报告，占内容权重 90% 以上；后端只会保留你的结论并补极少量缺失结构。",
     "要求：回答用户具体问题；不要编造真实外部数据；不要说自己无法算命；保持娱乐边界；输出严格 JSON。",
     "内容要丰富但不空泛，避免只说“稳步观察”“注意沟通”这类泛句。每个模块都要落到用户可以理解和执行的场景。",
     "不要把“白话总结”当标题卖点；要把所有内容写得像普通人能理解的解释。",
@@ -1629,6 +1627,7 @@ function buildPrompt(profile) {
     "重点问题必须直接回应用户原话，每个判断都尽量写出：命盘依据、心理动力、现实检验方式。",
     "必须使用 personalizationAnchors 和 questionSpecificReadingSeed；不要把不同用户或不同问题写成同一套答案。",
     "如果同一个生日换了不同问题，报告重点必须明显变化：事业问筹码和行动窗口，复合问关系回应和边界，财运问现金流和风险，健康问节奏和支持。",
+    "不要使用固定开场、固定结尾或固定 advice。每次都要围绕用户问题重新组织语言。",
     "禁止把 outputSchema 里的说明文字改写成正文；schema 只是格式要求，正文必须来自 profile 的排盘数据和用户原问题。",
     "不要反复使用“先小步验证、稳住节奏”作为万能结论；只有当问题意图和盘面依据支持时才使用。",
     "",
@@ -1693,7 +1692,7 @@ function buildRequestPayload(config, profile, forcePlainText = false) {
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: buildPrompt(profile) },
       ],
-      max_tokens: Number(process.env.OPENAI_REPORT_MAX_TOKENS || 2600),
+      max_tokens: Number(process.env.OPENAI_REPORT_MAX_TOKENS || 3600),
     };
 
     const isKimiK2 = config.provider === "Kimi" && /^kimi-k2\.(5|6)/.test(config.model);
@@ -1716,7 +1715,7 @@ function buildRequestPayload(config, profile, forcePlainText = false) {
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: buildPrompt(profile) },
     ],
-    max_output_tokens: Number(process.env.OPENAI_REPORT_MAX_TOKENS || 2600),
+    max_output_tokens: Number(process.env.OPENAI_REPORT_MAX_TOKENS || 3600),
   };
 
   const effort = process.env.OPENAI_REASONING_EFFORT || "low";
@@ -1762,6 +1761,7 @@ function buildChatPrompt({ profile, report, history, message }) {
     "",
     [
       "请直接回答用户的新问题，不要重新生成整份报告。",
+      "历史报告只当背景资料；本次回答必须根据用户新问题重新推理，不要复述报告原句，也不要沿用上次回答结构。",
       "请先按 personalizationAnchors.intent 判断问题类型，并围绕该类型切换分析重心。",
       "请用白话回答，像在认真给朋友解释，不要堆玄学术语；必须先给倾向性结论，再解释依据。",
       "不要固定输出【直接结论】【为什么这么看】等模板标题；可用自然段，也可用 2-4 个短标题，但标题要贴合本次问题。",
@@ -2141,116 +2141,280 @@ function sectionFallback(profile, title, existing = "") {
   return ensureRichText(existing, [templates[title], ...(expansions[title] || [])], minimumLength);
 }
 
-function normalizeReport(report, profile) {
-  const normalized = normalizeReportBrand(report && typeof report === "object" ? report : {});
-  const { user, pillars, strongest, weakest, primary, changed, sixYao, psychology, stellar, mysticSystems, firstFlow, trueSolarTime } = reportContext(profile);
-  const mysticLayers = mysticSystems.layers || {};
+function cleanReportText(text, maxLength = 1200) {
+  return softenSensitiveText(String(text || "").trim())
+    .replace(/\n{3,}/g, "\n\n")
+    .slice(0, maxLength);
+}
+
+function hasReportText(text, minLength = 32) {
+  return cleanReportText(text).length >= minLength;
+}
+
+function normalizeReportTextList(items, limit = 6, maxLength = 240) {
+  return uniqueItems(Array.isArray(items) ? items : [])
+    .map((item) => cleanReportText(item, maxLength))
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function compactSectionTitle(title = "") {
+  const value = String(title || "").trim();
+  return {
+    命盘总览: "命盘主线",
+    五行能量: "五行五维",
+    六爻卦象: "卦象与变化点",
+    趋吉避凶: "现实行动",
+  }[value] || value || "核心解读";
+}
+
+function structuredReportAnchor(profile = {}) {
+  const { user, pillars, strongest, weakest, primary, changed, sixYao, firstFlow, trueSolarTime } = reportContext(profile);
+  return [
+    user.question ? `用户问题：${user.question}` : "",
+    `四柱：年${pillars.year?.name || "--"}、月${pillars.month?.name || "--"}、日${pillars.day?.name || "--"}、时${pillars.hour?.name || "待填写"}`,
+    `日主：${pillars.dayMaster || pillars.day?.stem || "--"}`,
+    `五行：${(profile.elements || []).map((item) => `${item.element}${item.percent}%`).join(" / ") || "--"}`,
+    `强弱：${strongest.element || "--"}偏强，${weakest.element || "--"}需补`,
+    primary.name || changed.name ? `卦象：${primary.name || "--"} -> ${changed.name || "--"}${sixYao.lineTheme ? `，动点${sixYao.lineTheme}` : ""}` : "",
+    firstFlow.year ? `流年：${firstFlow.year} ${firstFlow.ganzhi || ""}，${firstFlow.theme || ""}` : "",
+    trueSolarTime.applied ? `真太阳时：${trueSolarTime.place?.name || "出生地"} ${trueSolarTime.correctedTime}` : "",
+  ].filter(Boolean).join("；");
+}
+
+function compactElementReport(profile = {}) {
+  const { strongest, weakest } = reportContext(profile);
+  const elements = (profile.elements || []).map((item) => `${item.element}${item.percent}%`).join("、");
+  return `五维数据为${elements || "待计算"}。${elementPlainLine(strongest, "ability")}；${elementPlainLine(weakest, "lack")}。这里仅说明能力分布，具体判断以上方 Kimi 解读为准。`;
+}
+
+function compactDomainReading(profile = {}, domain = {}) {
+  const { user } = reportContext(profile);
   const intent = user.questionIntent || inferQuestionIntent(user.question || "", user.focus);
+  return `${domain.label || "该领域"}指数 ${domain.score || 0}。本项只保留结构分值，核心判断围绕“${intent.label}”和用户原问题展开。`;
+}
 
-  normalized.summary = ensureRichText(normalized.summary, [
-    trueSolarTime.applied ? `本次采用真太阳时校正：${trueSolarTime.place?.name || "出生地"} ${trueSolarTime.correctedTime}，较填写时间${formatOffset(trueSolarTime.offsetMinutesExact)}。` : "",
-    `这份报告先按“${intent.label}”来解，不把你的问题套成泛泛整体运势。`,
-    `核心不是告诉你“命定如此”，而是帮你看清：哪些能力现在能用，哪些地方容易卡住，下一步该怎么验证。`,
-    `${user.name || "你"}的日主为${pillars.dayMaster || "日主"}，这是命盘底色；${elementPlainLine(strongest, "ability")}，${elementPlainLine(weakest, "lack")}。`,
-    `${sixYao.movement || `${primary.name || "本卦"}到${changed.name || "变卦"}`}的意思是事情不是一锤定音，更适合用阶段验证、稳定输出和复盘来推动。`,
-    mysticSystems.version ? `八字、六爻/梅花、奇门、姻缘、风水和塔罗只是不同观察角度：共同指向才放大，冲突之处要用现实证据复核。` : "",
-    `星术参照为${stellar.sign || profile.western?.sign || "未定"}，心理动力重点是${psychology.coreNeed || "辨认真实需要"}；围绕${user.focusLabel || "整体格局"}，建议把想法落到具体行动、情绪复盘与现实反馈上。`,
-    `${sixYao.lineTheme ? `动爻落在${sixYao.lineTheme}，` : ""}翻译成现实语言，就是你现在最该处理的不是抽象运气，而是某个可以被看见、被沟通、被验证的环节。`,
-    `如果问题涉及选择，先把“我想要什么”“我害怕什么”“我能做什么”分开写清楚，再用 7 天内的小行动测试局面的真实反馈。`,
-  ], 220);
+function compactFlowReading(profile = {}, flow = {}) {
+  const { user } = reportContext(profile);
+  return `${flow.year} 年${flow.ganzhi ? `为${flow.ganzhi}` : ""}，主题是${flow.theme || "阶段推进"}。围绕${user.focusLabel || "当前问题"}，更适合看现实反馈和阶段窗口。`;
+}
 
-  normalized.plainSummary = ensureRichText(normalized.plainSummary, [
-    buildPlainSummary(profile),
-  ], 80);
+function normalizeReport(report, profile) {
+  const normalized = normalizeReportBrand(report && typeof report === "object" ? { ...report } : {});
+  const { user, pillars, strongest, weakest, primary, sixYao, mysticSystems, firstFlow, trueSolarTime } = reportContext(profile);
+  const intent = user.questionIntent || inferQuestionIntent(user.question || "", user.focus);
+  const rawSections = Array.isArray(normalized.sections) ? normalized.sections : [];
+  const hasModelReport = [
+    normalized.plainSummary,
+    normalized.summary,
+    normalized.elementInsight,
+    ...rawSections.map((item) => item?.body),
+    ...(Array.isArray(normalized.advice) ? normalized.advice : []),
+  ].some((text) => hasReportText(text, 36));
+  const anchor = structuredReportAnchor(profile);
+
+  normalized.title = normalized.title || "命盘师 AI 命盘报告";
+  normalized.summary = cleanReportText(
+    normalized.summary || (hasModelReport
+      ? normalized.plainSummary
+      : `Kimi 暂时没有返回完整正式报告。已完成确定性排盘：${anchor}`),
+    800,
+  );
+  normalized.plainSummary = cleanReportText(
+    normalized.plainSummary || (hasModelReport
+      ? normalized.summary
+      : `本次正式解读未完成，请稍后重新生成。\n${anchor}`),
+    520,
+  );
 
   normalized.tags = uniqueItems([
-    ...(normalized.tags || []),
+    ...(Array.isArray(normalized.tags) ? normalized.tags.filter((tag) => tag !== "排盘资料包") : []),
+    hasModelReport ? "Kimi主导" : "待重试",
+    intent.label,
     user.focusLabel,
     primary.name,
-    sixYao.lineName ? `六爻${sixYao.lineName}` : "六爻",
+    sixYao.lineName ? `六爻${sixYao.lineName}` : "",
     mysticSystems.version ? "多术数交叉" : "",
-    mysticLayers.qimen?.door,
-    mysticLayers.tarot?.cards?.[0]?.name,
     trueSolarTime.applied ? "真太阳时" : "",
-    stellar.sign,
-    "心理动力",
-    `${strongest.element}旺`,
-    `${weakest.element}需补`,
+    `${strongest.element || "五行"}旺`,
+    `${weakest.element || "五行"}需补`,
     firstFlow.theme,
   ]).slice(0, 8);
 
-  normalized.keyPoints = uniqueItems([
-    ...(normalized.keyPoints || []),
-    `先看结构，不要只看单点：年柱${pillars.year?.name || "--"}、月柱${pillars.month?.name || "--"}、日柱${pillars.day?.name || "--"}、时柱${pillars.hour?.name || "未知"}共同决定节奏。`,
-    `你的可用优势是：${elementPlainLine(strongest, "ability")}；需要补的短板是：${elementPlainLine(weakest, "lack")}。`,
-    `本卦${primary.name || "--"}、变卦${changed.name || "--"}，翻译成现实语言就是：局面有稳定面，也有能被行动改变的变量。`,
-    sixYao.movement ? `${sixYao.movement}，动爻主题是${sixYao.lineTheme || "变化位置"}，这通常是最适合先处理的现实突破口。` : "",
-    mysticSystems.crossChecks?.[0] || "",
-    mysticLayers.qimen?.plain ? `奇门问事层显示：${mysticLayers.qimen.plain}` : "",
-    mysticLayers.yinyuan?.active && mysticLayers.yinyuan?.plain ? `姻缘关系层显示：${mysticLayers.yinyuan.plain}` : "",
-    stellar.sign ? `${stellar.sign}作为星术参照，优势是${stellar.gift || "适应力"}，压力下需留意${stellar.shadow || "节奏失衡"}。` : "",
-    psychology.coreNeed ? `心理动力上更在意${psychology.coreNeed}，压力模式可能是${psychology.stressPattern || "不确定感放大"}，适合用行动复盘降低内耗。` : "",
-    trueSolarTime.applied ? `已按${trueSolarTime.place?.name || "出生地"}真太阳时 ${trueSolarTime.correctedTime} 起盘，时柱与日柱以校正后时间为准。` : "",
-    firstFlow.year ? `${firstFlow.year} 年流年为${firstFlow.ganzhi}，主题是${firstFlow.theme}，适合把机会拆成可验证步骤。` : "",
-  ]).slice(0, 8);
+  const modelKeyPoints = normalizeReportTextList(normalized.keyPoints, 8, 260);
+  const anchorKeyPoints = [
+    `四柱锚点：年柱${pillars.year?.name || "--"}、月柱${pillars.month?.name || "--"}、日柱${pillars.day?.name || "--"}、时柱${pillars.hour?.name || "待填写"}。`,
+    `五行锚点：${elementPlainLine(strongest, "ability")}；${elementPlainLine(weakest, "lack")}。`,
+    primary.name ? `卦象锚点：${primary.name}${profile.hexagrams?.changed?.name ? `变${profile.hexagrams.changed.name}` : ""}${sixYao.lineTheme ? `，动点在${sixYao.lineTheme}` : ""}。` : "",
+    firstFlow.year ? `流年锚点：${firstFlow.year} 年${firstFlow.ganzhi || ""}，主题为${firstFlow.theme || "阶段变化"}。` : "",
+  ];
+  normalized.keyPoints = uniqueItems([...modelKeyPoints, ...anchorKeyPoints]).slice(0, hasModelReport ? 6 : 5);
 
-  normalized.elementInsight = ensureRichText(normalized.elementInsight, [
-    `当前五行排序为${(profile.elements || []).map((item) => `${item.element}${item.percent}%`).join("、")}。这组数字不用神秘化，它是在说你的能力分布。`,
-    `${elementPlainLine(strongest, "ability")}，这是你比较容易拿出来用的部分；${elementPlainLine(weakest, "lack")}，这是容易拖慢判断和行动的地方。`,
-    `心理层面，优势会对应${psychology.coreNeed || "明确的内在需要"}，短板容易带来${psychology.stressPattern || "压力反应"}。建议把补五行理解为补现实能力：${elementExplain(weakest.element).action}。`,
-  ], 220);
+  normalized.elementInsight = cleanReportText(normalized.elementInsight, 700) || compactElementReport(profile);
 
-  const aiDomains = new Map((normalized.domainReadings || []).map((item) => [item.key, item]));
+  const aiDomains = new Map((Array.isArray(normalized.domainReadings) ? normalized.domainReadings : []).map((item) => [item.key, item]));
   normalized.domainReadings = (profile.domains || []).map((domain) => {
     const ai = aiDomains.get(domain.key) || {};
+    const reading = cleanReportText(ai.reading, 320);
     return {
       key: domain.key,
       label: ai.label || domain.label,
       score: Number(ai.score || domain.score || 0),
-      reading: domainFallback(profile, domain, ai.reading),
+      reading: hasReportText(reading, 24) ? reading : compactDomainReading(profile, domain),
     };
   });
 
-  const aiFlow = new Map((normalized.annualFlow || []).map((item) => [Number(item.year), item]));
+  const aiFlow = new Map((Array.isArray(normalized.annualFlow) ? normalized.annualFlow : []).map((item) => [Number(item.year), item]));
   normalized.annualFlow = (profile.annualFlow || []).map((flow) => {
     const ai = aiFlow.get(Number(flow.year)) || {};
+    const reading = cleanReportText(ai.reading, 260);
     return {
       year: flow.year,
       theme: ai.theme || flow.theme,
-      reading: ensureRichText(ai.reading, [
-        `${flow.year} 年为${flow.ganzhi}，主题是${ai.theme || flow.theme}。适合围绕${user.focusLabel || "当前重点"}做阶段推进，先稳住资源与节奏，再放大有效动作；避免在信息不足时做重决定。`,
-      ], 85),
+      reading: hasReportText(reading, 24) ? reading : compactFlowReading(profile, flow),
     };
   });
 
-  const requiredTitles = ["重点问题", "命盘总览", "五行能量", "六爻卦象", "多术数交叉验证", "心理动力"];
-  const aiSections = new Map((normalized.sections || []).map((item) => [item.title, item]));
-  normalized.sections = requiredTitles.map((title) => ({
-    title,
-    body: sectionFallback(profile, title, aiSections.get(title)?.body),
-  }));
+  let sections = rawSections
+    .map((item) => ({
+      title: compactSectionTitle(item?.title),
+      body: cleanReportText(item?.body, 900),
+    }))
+    .filter((item) => item.title && hasReportText(item.body, 24));
 
-  normalized.advice = uniqueItems([
-    ...(normalized.advice || []),
-    "把最关心的问题拆成 3 个可验证动作，本周先完成第一个。",
-    "做重大选择前，至少写下收益、成本、替代方案和最坏结果。",
-    "把贵人运理解为可见度：整理作品、数据、案例或复盘记录。",
-    "涉及金钱、健康和长期关系时，用现实证据校验报告提示。",
-    "用“触发事件-自动想法-情绪强度-可选行动”记录一次本周最在意的情绪。",
-    "不同术数层若出现冲突，先做现实验证，不急着选择最想听的答案。",
-    "问自己：我是在追求真实价值，还是在躲避不确定感？",
-  ]).slice(0, 7);
+  if (hasModelReport && sections.some((item) => item.title !== "排盘锚点")) {
+    sections = sections.filter((item) => item.title !== "排盘锚点");
+  }
 
-  normalized.counselingPrompts = uniqueItems([
-    ...(normalized.counselingPrompts || []),
-    `当我问“${user.question || "这个问题"}”时，我最强烈的情绪是什么？它在保护我什么？`,
-    `我真正能控制的行动是什么，哪些结果需要允许它暂时不确定？`,
-    `如果不急着证明自己，我下一步最小、最稳的验证动作是什么？`,
-  ]).slice(0, 5);
+  if (hasModelReport && !sections.some((item) => /重点|问题|结论/.test(item.title))) {
+    sections.unshift({
+      title: "重点问题",
+      body: cleanReportText(normalized.summary || normalized.plainSummary, 700),
+    });
+  }
+
+  if (!hasModelReport || !sections.length) {
+    sections = [
+      {
+        title: "模型状态",
+        body: "Kimi 暂时未完成本次正式解读。为了避免把模板当成收费报告，本次只展示已计算出的排盘锚点，请稍后重新生成。",
+      },
+      { title: "已完成排盘", body: anchor },
+    ];
+  }
+
+  normalized.sections = [];
+  const seenTitles = new Set();
+  for (const section of sections) {
+    if (seenTitles.has(section.title)) continue;
+    seenTitles.add(section.title);
+    normalized.sections.push(section);
+    if (normalized.sections.length >= 7) break;
+  }
+
+  const advice = normalizeReportTextList(normalized.advice, 5, 220);
+  if (advice.length < 3) {
+    advice.push(intentActionText(intent, weakest.element));
+    advice.push(`用${intentRealityCheck(intent)}复核本次结论，不把单次解读当成现实中的唯一依据。`);
+  }
+  normalized.advice = uniqueItems(advice).slice(0, 5);
+
+  const prompts = normalizeReportTextList(normalized.counselingPrompts, 4, 180);
+  if (prompts.length < 2) {
+    prompts.push(`我问“${user.question || user.focusLabel || "这个问题"}”时，真正想确认的是什么？`);
+    prompts.push("我现在能控制的最小行动是什么，哪些结果需要暂时允许不确定？");
+  }
+  normalized.counselingPrompts = uniqueItems(prompts).slice(0, 4);
 
   normalized.lucky = { ...profile.lucky, ...(normalized.lucky || {}) };
   normalized.disclaimer = normalized.disclaimer || "报告仅供娱乐与自我反思，不作为医疗、法律、投资或人生重大决策依据。";
   return normalized;
+}
+
+function buildKimiReportSeed(profile) {
+  const anchor = structuredReportAnchor(profile);
+  return {
+    title: "命盘师 AI 命盘报告",
+    plainSummary: "",
+    summary: "",
+    tags: ["排盘资料包"],
+    keyPoints: [anchor],
+    elementInsight: compactElementReport(profile),
+    domainReadings: (profile.domains || []).map((domain) => ({
+      key: domain.key,
+      label: domain.label,
+      score: domain.score,
+      reading: "",
+    })),
+    annualFlow: (profile.annualFlow || []).map((flow) => ({
+      year: flow.year,
+      theme: flow.theme,
+      reading: "",
+    })),
+    sections: [{ title: "排盘锚点", body: anchor }],
+    advice: [],
+    counselingPrompts: [],
+    lucky: profile.lucky,
+    disclaimer: "报告仅供娱乐与自我反思，不作为医疗、法律、投资或人生重大决策依据。",
+  };
+}
+
+function compactKimiCoreForPrompt(profile) {
+  const { user, pillars, elements, strongest, weakest, primary, changed, sixYao, psychology, stellar, mysticSystems, firstFlow, trueSolarTime } = reportContext(profile);
+  const layers = mysticSystems.layers || {};
+  return {
+    question: user.question || "",
+    focus: user.focusLabel || "",
+    intent: user.questionIntent || inferQuestionIntent(user.question || "", user.focus),
+    birth: {
+      date: user.birthDate,
+      time: user.birthTime,
+      place: user.birthPlace,
+      trueSolarTime: trueSolarTime.applied ? `${trueSolarTime.place?.name || ""} ${trueSolarTime.correctedTime}` : "",
+    },
+    pillars: {
+      year: pillarLabel(pillars.year),
+      month: pillarLabel(pillars.month),
+      day: pillarLabel(pillars.day),
+      hour: pillarLabel(pillars.hour),
+      dayMaster: pillars.dayMaster || pillars.day?.stem || "",
+    },
+    elements,
+    strongest: strongest.element,
+    weakest: weakest.element,
+    hexagram: {
+      primary: primary.name || "",
+      changed: changed.name || "",
+      movingLine: sixYao.lineName || "",
+      lineTheme: sixYao.lineTheme || "",
+      movement: sixYao.movement || "",
+    },
+    annual: firstFlow.year ? {
+      year: firstFlow.year,
+      ganzhi: firstFlow.ganzhi,
+      theme: firstFlow.theme,
+      score: firstFlow.score,
+    } : null,
+    psychology: {
+      need: psychology.coreNeed || "",
+      stress: psychology.stressPattern || "",
+      regulation: psychology.regulation || "",
+    },
+    stellar: stellar.sign ? {
+      sign: stellar.sign,
+      gift: stellar.gift,
+      shadow: stellar.shadow,
+    } : null,
+    systems: [
+      layers.bazi?.userQuestionAnchor ? `八字：${layers.bazi.userQuestionAnchor}` : "",
+      layers.liuyao?.plain ? `六爻：${layers.liuyao.plain}` : "",
+      layers.meihua?.plain ? `梅花：${layers.meihua.plain}` : "",
+      layers.qimen?.plain ? `奇门：${layers.qimen.plain}` : "",
+      layers.ziwei?.plain ? `紫微：${layers.ziwei.plain}` : "",
+      layers.yinyuan?.active && layers.yinyuan?.plain ? `姻缘：${layers.yinyuan.plain}` : "",
+      layers.tarot?.plain ? `塔罗：${layers.tarot.plain}` : "",
+    ].filter(Boolean).slice(0, 4),
+  };
 }
 
 async function callOpenAI(profile) {
@@ -2291,7 +2455,7 @@ async function callOpenAI(profile) {
   }
 
   const report = parseReport(outputText, profile);
-  report.tags = uniqueItems([`${config.provider}融合测算`, ...(report.tags || [])]).slice(0, 8);
+  report.tags = uniqueItems([`${config.provider}主导测算`, ...(report.tags || [])]).slice(0, 8);
 
   return {
     model: config.model,
@@ -2303,50 +2467,44 @@ async function callOpenAI(profile) {
 }
 
 function buildReportEnhancementPrompt({ profile, report }) {
-  const sections = new Map((report.sections || []).map((item) => [item.title, item.body]));
   return [
-    "请基于资料包增强已有报告的关键内容。",
-    "不要输出 JSON，不要 Markdown 代码块。必须严格使用下面的 XML 风格标签，标签名不要改。",
-    "这是用户最终看到的核心报告内容，不是后台润色。不要输出长篇总报告，但每段都必须像真实测算。",
-    "必须使用 personalizationAnchors 和 questionSpecificReadingSeed；重点问题第一段要直接回答用户原话。",
-    "增强后的内容要比 currentReport 更具体，必须点名具体四柱、五行、卦象或流年信息。",
-    "禁止只换词复述 currentReport；必须根据用户问题类型改变分析重心。",
-    "正文里可以使用中文引号“”，不要使用英文双引号。",
+    "请基于资料包生成用户最终看到的核心 AI 命盘报告。",
+    "不要输出 JSON，不要 Markdown 代码块。必须严格使用下面的 XML 风格标签，标签名和 title 不要改。",
+    "总字数控制在 650-850 个中文字符。不要写长篇总报告，不要套固定开场和固定结尾。",
+    "第一优先级是回答用户原问题；同一生日换问题时，结论、依据、行动建议都必须随问题改变。",
+    "每个结论至少挂 1 个具体依据：四柱/日主/月柱/时柱、五行强弱、本卦变卦/动爻、流年主题或相关术数层。",
+    "术语出现后立刻翻译成人话；建议要具体到谈判、沟通、预算、时间窗口或观察指标。",
+    "不要恐吓，不做确定性命运断言。涉及钱、健康、重大关系时提醒现实复核。",
     "",
     "输出格式：",
     "<plainSummary>",
-    "4 行以内阅读前置结论。每行都让普通用户直接懂：结论、原因、风险、下一步。",
+    "3-4 行，直接说结论、命盘依据、风险、下一步。",
     "</plainSummary>",
     "<summary>",
-    "120-180 字总论，先说人话结论，再少量解释命盘依据。",
+    "100-150 字，先回答用户问题，再解释 2-3 个关键依据。",
     "</summary>",
-    "<section title=\"重点问题\">220-300 字，第一句直接回答用户原问题；后面讲命理依据、心理动力、现实行动。</section>",
-    "<section title=\"命盘总览\">100-150 字，说明这个人的盘面主线，不要套通用性格。</section>",
-    "<section title=\"五行能量\">100-150 字，把五行强弱翻译成这次问题里的现实能力和短板。</section>",
-    "<section title=\"六爻卦象\">100-150 字，把本卦、变卦、动爻翻译成处境和变化点。</section>",
-    "<section title=\"多术数交叉验证\">140-200 字，只选最相关 2-3 个体系，说明共同指向和现实检验方式。</section>",
-    "<section title=\"心理动力\">110-170 字，用咨询式语言说明核心需要、压力模式、边界和行动卡点，不做诊断。</section>",
+    "<section title=\"重点问题\">120-170 字，第一句直接回答用户原问题；后面讲依据、心理动力、现实行动。</section>",
+    "<section title=\"五行五维\">90-130 字，把五行强弱翻译成这次问题里的现实能力和短板。</section>",
+    "<section title=\"卦象与变化点\">90-130 字，把本卦、变卦、动爻翻译成处境和变化点。</section>",
+    "<section title=\"现实行动\">90-130 字，给出 7 天或 30 天内可执行动作、观察指标和边界提醒。</section>",
     "<advice>",
-    "- 3-5 条 7 天或 30 天内可执行建议",
+    "- 3 条具体建议，每条不超过 35 字",
     "</advice>",
     "<counselingPrompts>",
-    "- 2-3 个自我提问",
+    "- 2 个自我提问",
     "</counselingPrompts>",
     "",
-    JSON.stringify({
-      fusionProfile: compactFusionProfileForPrompt(profile),
-      questionSpecificReadingSeed: intentSpecificReading(profile),
-      currentReport: {
-        plainSummary: report.plainSummary,
-        focusQuestion: sections.get("重点问题") || "",
-      },
-    }),
+    "资料包：",
+    JSON.stringify(compactKimiCoreForPrompt(profile)),
+    "",
+    "用户问题特化提示：",
+    intentSpecificReading(profile),
   ].join("\n");
 }
 
 function buildReportEnhancementPayload(config, input, forcePlainText = false) {
   const userPrompt = buildReportEnhancementPrompt(input);
-  const maxTokens = Number(process.env.OPENAI_ENHANCEMENT_MAX_TOKENS || 1200);
+  const maxTokens = Number(process.env.OPENAI_ENHANCEMENT_MAX_TOKENS || 1000);
   if (config.style === "chat") {
     const payload = {
       model: config.model,
@@ -2466,27 +2624,28 @@ function parseEnhancementOutput(text = "") {
 
 function mergeReportEnhancement(report, profile, enhancement) {
   const next = normalizeReport({ ...(report || {}) }, profile);
-  if (enhancement.plainSummary) next.plainSummary = ensureRichText(enhancement.plainSummary, [next.plainSummary], 80);
-  if (enhancement.summary) next.summary = ensureRichText(enhancement.summary, [next.summary], 180);
-  if (enhancement.advice?.length) next.advice = uniqueItems([...enhancement.advice, ...(next.advice || [])]).slice(0, 7);
+  if (enhancement.plainSummary) next.plainSummary = cleanReportText(enhancement.plainSummary, 520);
+  if (enhancement.summary) next.summary = cleanReportText(enhancement.summary, 800);
+  if (enhancement.advice?.length) {
+    next.advice = normalizeReportTextList(enhancement.advice, 5, 220);
+  }
   if (enhancement.counselingPrompts?.length) {
-    next.counselingPrompts = uniqueItems([...enhancement.counselingPrompts, ...(next.counselingPrompts || [])]).slice(0, 5);
+    next.counselingPrompts = normalizeReportTextList(enhancement.counselingPrompts, 4, 180);
   }
-  const byTitle = new Map((next.sections || []).map((item) => [item.title, { ...item }]));
-  for (const section of enhancement.sections || []) {
-    const existing = byTitle.get(section.title);
-    byTitle.set(section.title, {
-      title: section.title,
-      body: String(section.body || "").trim().length >= (section.title === "重点问题" ? 160 : 80)
-        ? softenSensitiveText(section.body)
-        : ensureRichText(section.body, [existing?.body || ""], section.title === "重点问题" ? 220 : 140),
+  const enhancedSections = (enhancement.sections || [])
+    .map((section) => ({
+      title: compactSectionTitle(section.title),
+      body: cleanReportText(section.body, 900),
+    }))
+    .filter((section) => section.title && hasReportText(section.body, 24));
+  if (enhancedSections.length) {
+    const oldSections = (next.sections || []).filter((section) => {
+      const title = compactSectionTitle(section.title);
+      return !enhancedSections.some((enhanced) => compactSectionTitle(enhanced.title) === title);
     });
+    next.sections = [...enhancedSections, ...oldSections].slice(0, 7);
   }
-  next.sections = (next.sections || []).map((item) => byTitle.get(item.title) || item);
-  for (const [title, section] of byTitle.entries()) {
-    if (!(next.sections || []).some((item) => item.title === title)) next.sections.push(section);
-  }
-  next.tags = uniqueItems([...(next.tags || []), "Kimi增强"]).slice(0, 8);
+  next.tags = uniqueItems(["Kimi主导", ...(next.tags || [])]).slice(0, 8);
   return normalizeReport(next, profile);
 }
 
@@ -2501,14 +2660,14 @@ async function callReportEnhancementAI({ profile, report }) {
   const config = apiConfig();
   let payload = buildReportEnhancementPayload(config, { profile, report });
   let response = await postModelRequest(config, apiKey, payload, {
-    timeoutMs: Number(process.env.MODEL_FUSION_TIMEOUT_MS || 70_000),
+    timeoutMs: Number(process.env.MODEL_FUSION_TIMEOUT_MS || 90_000),
   });
   let bodyText = await response.text();
 
   if (!response.ok && config.style === "chat" && payload.response_format && /response_format|json_object/i.test(bodyText)) {
     payload = buildReportEnhancementPayload(config, { profile, report }, true);
     response = await postModelRequest(config, apiKey, payload, {
-      timeoutMs: Number(process.env.MODEL_FUSION_TIMEOUT_MS || 70_000),
+      timeoutMs: Number(process.env.MODEL_FUSION_TIMEOUT_MS || 90_000),
     });
     bodyText = await response.text();
   }
@@ -2537,19 +2696,27 @@ async function callReportEnhancementAI({ profile, report }) {
 }
 
 function localReportResult(profile, error) {
+  const anchor = structuredReportAnchor(profile);
   return {
-    model: "mingpanshi-report-engine",
-    provider: "命盘师",
-    endpointLabel: "Mingpanshi report engine",
+    model: "kimi-unavailable",
+    provider: "Kimi暂不可用",
+    endpointLabel: "Local structured fallback",
     report: normalizeReport({
       title: "命盘师 AI 命盘报告",
-      summary: "",
-      tags: [],
-      keyPoints: [],
+      plainSummary: `Kimi 暂时没有完成本次正式报告，这次不会把本地模板伪装成测算结果。\n${anchor}`,
+      summary: `模型服务暂时未返回正式解读。为了保证收费产品的内容质量，本次只展示已经计算出的排盘锚点：${anchor}`,
+      tags: ["模型待重试", "排盘已完成"],
+      keyPoints: [
+        `四柱：年柱${profile.pillars?.year?.name || "--"}、月柱${profile.pillars?.month?.name || "--"}、日柱${profile.pillars?.day?.name || "--"}、时柱${profile.pillars?.hour?.name || "待填写"}。`,
+        `五行：${(profile.elements || []).map((item) => `${item.element}${item.percent}%`).join("、") || "--"}。`,
+      ],
       domainReadings: [],
       annualFlow: [],
-      sections: [],
-      advice: [],
+      sections: [
+        { title: "模型状态", body: "Kimi 暂时未完成正式报告。请稍后重新生成，避免把固定模板当成付费测算内容。" },
+        { title: "已完成排盘", body: anchor },
+      ],
+      advice: ["稍后重新生成正式报告；涉及金钱、健康和重大关系时，用现实证据复核。"],
       lucky: profile.lucky,
       disclaimer: "报告仅供娱乐与自我反思，不作为医疗、法律、投资或人生重大决策依据。",
     }, profile),
@@ -2601,7 +2768,9 @@ async function callChatAI({ profile, report, history, message }) {
 
   const config = apiConfig();
   const payload = buildChatRequestPayload(config, { profile, report, history, message });
-  const response = await postModelRequest(config, apiKey, payload);
+  const response = await postModelRequest(config, apiKey, payload, {
+    timeoutMs: Number(process.env.MODEL_CHAT_TIMEOUT_MS || 75_000),
+  });
   const bodyText = await response.text();
 
   if (!response.ok) {
@@ -2766,10 +2935,10 @@ async function handleApiOperation({ method, pathname, input = {}, headers = {}, 
     const profile = buildFortuneProfile(input);
     let ai;
     try {
-      const base = localReportResult(profile);
-      const fusion = await callReportEnhancementAI({ profile, report: base.report });
-      const report = mergeReportEnhancement(base.report, profile, fusion.enhancement);
-      report.tags = uniqueItems([`${fusion.provider}融合测算`, ...(report.tags || [])]).slice(0, 8);
+      const seedReport = buildKimiReportSeed(profile);
+      const fusion = await callReportEnhancementAI({ profile, report: seedReport });
+      const report = mergeReportEnhancement(seedReport, profile, fusion.enhancement);
+      report.tags = uniqueItems([`${fusion.provider}主导测算`, ...(report.tags || [])]).slice(0, 8);
       ai = {
         model: fusion.model,
         provider: fusion.provider,
