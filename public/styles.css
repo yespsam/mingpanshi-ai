@@ -1185,6 +1185,76 @@ textarea:focus {
   background: var(--bar-color);
 }
 
+.element-radar-card {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+}
+
+.element-radar {
+  width: min(100%, 220px);
+  aspect-ratio: 1;
+  filter: drop-shadow(0 0 18px rgba(73, 255, 178, 0.12));
+}
+
+.radar-grid polygon,
+.radar-grid line {
+  fill: none;
+  stroke: rgba(73, 255, 178, 0.2);
+  stroke-width: 1;
+}
+
+.radar-shape {
+  fill: rgba(73, 255, 178, 0.2);
+  stroke: var(--matrix-green);
+  stroke-width: 2;
+}
+
+.radar-dots circle {
+  fill: var(--dot-color, var(--matrix-green));
+  stroke: rgba(11, 16, 22, 0.96);
+  stroke-width: 2;
+}
+
+.radar-labels text {
+  fill: var(--matrix-text);
+  font-family: var(--font-code);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.element-radar-note {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.element-radar-note strong {
+  color: var(--matrix-green);
+  font-family: var(--font-code);
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.element-radar-note span {
+  color: var(--matrix-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+@media (max-width: 720px) {
+  .element-radar-card {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .element-radar-note {
+    max-width: 280px;
+  }
+}
+
 .domain-card,
 .annual-item,
 .report-section {
@@ -6775,5 +6845,276 @@ body,
 
   .skill-panel-head {
     display: grid;
+  }
+}
+
+.infra-page {
+  color-scheme: dark;
+  color: var(--matrix-text);
+  background:
+    radial-gradient(circle at 75% 5%, rgba(0, 255, 112, 0.16), transparent 28%),
+    linear-gradient(180deg, #030806 0%, #000 100%);
+}
+
+.infra-main {
+  width: min(100% - 32px, 1180px);
+  margin: 0 auto;
+  padding: 46px 0 80px;
+}
+
+.infra-hero,
+.infra-band,
+.infra-grid-section {
+  border: 1px solid rgba(0, 255, 112, 0.22);
+  border-radius: 10px;
+  background: rgba(0, 12, 6, 0.88);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.42);
+}
+
+.infra-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
+  gap: 28px;
+  align-items: stretch;
+  padding: clamp(26px, 5vw, 54px);
+}
+
+.infra-terminal-line,
+.infra-section-head span,
+.infra-card-top span,
+.infra-specs span {
+  margin: 0 0 14px;
+  color: var(--matrix-green);
+  font-family: var(--font-code);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.infra-hero h1,
+.infra-band h2,
+.infra-section-head h2 {
+  margin: 0;
+  color: var(--matrix-text);
+  font-family: var(--font-code);
+  letter-spacing: 0;
+}
+
+.infra-hero h1 {
+  max-width: 760px;
+  font-size: clamp(34px, 7vw, 74px);
+  line-height: 0.96;
+}
+
+.infra-hero p,
+.infra-section-head p,
+.infra-card p,
+.infra-status p,
+.infra-note {
+  color: rgba(218, 255, 230, 0.76);
+  font-size: 15px;
+  line-height: 1.9;
+}
+
+.infra-hero p {
+  max-width: 720px;
+  margin: 22px 0 0;
+  font-size: 17px;
+}
+
+.infra-actions,
+.infra-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.infra-status {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid rgba(0, 255, 112, 0.18);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.34);
+}
+
+.infra-status span,
+.infra-status a {
+  color: var(--matrix-green);
+  font-family: var(--font-code);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.infra-status strong {
+  color: var(--matrix-text);
+  font-family: var(--font-code);
+  font-size: 24px;
+}
+
+.infra-band,
+.infra-grid-section {
+  margin-top: 18px;
+  padding: clamp(22px, 4vw, 34px);
+}
+
+.infra-band h2,
+.infra-section-head h2 {
+  font-size: clamp(24px, 4vw, 38px);
+}
+
+.infra-steps,
+.infra-card-grid {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.infra-steps {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.infra-steps article,
+.infra-card {
+  min-width: 0;
+  border: 1px solid rgba(0, 255, 112, 0.16);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.infra-steps article {
+  padding: 16px;
+}
+
+.infra-steps span {
+  display: block;
+  color: var(--matrix-green);
+  font-family: var(--font-code);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.infra-steps strong {
+  display: block;
+  margin-top: 10px;
+  color: var(--matrix-text);
+  font-family: var(--font-code);
+}
+
+.infra-steps p {
+  margin: 8px 0 0;
+  color: rgba(218, 255, 230, 0.68);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.infra-card-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.infra-card {
+  display: grid;
+  align-content: start;
+  padding: 22px;
+}
+
+.infra-card.featured {
+  background:
+    linear-gradient(135deg, rgba(0, 255, 112, 0.12), rgba(0, 0, 0, 0.28)),
+    rgba(0, 0, 0, 0.34);
+}
+
+.infra-card-top {
+  display: grid;
+  gap: 7px;
+}
+
+.infra-card-top strong {
+  color: var(--matrix-text);
+  font-family: var(--font-code);
+  font-size: 24px;
+}
+
+.infra-specs {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid rgba(0, 255, 112, 0.13);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.infra-specs strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--matrix-text);
+  font-family: var(--font-code);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.infra-checks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.infra-checks label {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 14px;
+  border: 1px solid rgba(0, 255, 112, 0.14);
+  border-radius: 8px;
+  color: rgba(218, 255, 230, 0.82);
+  background: rgba(0, 0, 0, 0.3);
+  line-height: 1.55;
+}
+
+.infra-checks input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: #00ff70;
+}
+
+.infra-command {
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px dashed rgba(0, 255, 112, 0.3);
+  border-radius: 8px;
+  color: var(--matrix-green);
+  background: rgba(0, 0, 0, 0.36);
+  overflow-x: auto;
+}
+
+.infra-command code {
+  font-family: var(--font-code);
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .infra-hero,
+  .infra-steps,
+  .infra-card-grid,
+  .infra-checks {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .infra-main {
+    width: min(100% - 18px, 1180px);
+    padding-top: 24px;
+  }
+
+  .infra-hero,
+  .infra-band,
+  .infra-grid-section,
+  .infra-card {
+    padding: 18px;
   }
 }

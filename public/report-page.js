@@ -34,16 +34,16 @@ function reportToText(payload = {}) {
     `本卦：${profile.hexagrams?.primary?.name || "--"}，变卦：${profile.hexagrams?.changed?.name || "--"}`,
   ];
 
-  if (Array.isArray(report.keyPoints) && report.keyPoints.length) {
-    parts.push("", "命盘要点", ...report.keyPoints.map((item) => `- ${item}`));
-  }
-  if (report.elementInsight) parts.push("", "五行分析", report.elementInsight);
-  for (const section of report.sections || []) parts.push("", section.title || "命盘解读", section.body || "");
+  const byTitle = new Map((report.sections || []).map((item) => [item.title, item.body]));
+  [
+    ["针对你的问题", byTitle.get("重点问题")],
+    ["命盘主线", byTitle.get("命盘总览")],
+    ["交叉验证", byTitle.get("多术数交叉验证")],
+  ].forEach(([title, body]) => {
+    if (body) parts.push("", title, body);
+  });
   if (Array.isArray(report.advice) && report.advice.length) {
-    parts.push("", "行动建议", ...report.advice.map((item, index) => `${index + 1}. ${item}`));
-  }
-  if (Array.isArray(report.counselingPrompts) && report.counselingPrompts.length) {
-    parts.push("", "自我提问", ...report.counselingPrompts.map((item) => `- ${item}`));
+    parts.push("", "下一步行动", ...report.advice.slice(0, 4).map((item, index) => `${index + 1}. ${item}`));
   }
   if (report.disclaimer) parts.push("", report.disclaimer);
   return parts.filter((part) => part !== undefined && part !== null).join("\n");

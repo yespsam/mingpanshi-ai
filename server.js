@@ -2223,7 +2223,7 @@ function normalizeReport(report, profile) {
     };
   });
 
-  const requiredTitles = ["命盘总览", "五行能量", "六爻卦象", "多术数交叉验证", "星术参照", "心理动力", "事业与学业", "感情与人际", "财运与资源", "身心与节奏", "重点问题", "趋吉避凶"];
+  const requiredTitles = ["重点问题", "命盘总览", "五行能量", "六爻卦象", "多术数交叉验证", "心理动力"];
   const aiSections = new Map((normalized.sections || []).map((item) => [item.title, item]));
   normalized.sections = requiredTitles.map((title) => ({
     title,

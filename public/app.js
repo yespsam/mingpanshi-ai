@@ -546,19 +546,61 @@ function renderPillars(profile = {}) {
 }
 
 function renderElements(elements = []) {
-  elementBars.innerHTML = elements
-    .map((item) => {
-      const color = elementColors[item.element] || "var(--gold)";
-      const percent = Math.max(0, Math.min(100, Number(item.percent) || 0));
-      return `
-        <div class="element-row">
-          <span class="element-name">${escapeHtml(item.element)}</span>
-          <span class="bar"><span class="bar-fill" style="--value:${percent}%;--bar-color:${color}"></span></span>
-          <span class="element-value">${percent}%</span>
-        </div>
-      `;
+  const order = ["木", "火", "土", "金", "水"];
+  const byElement = new Map((elements || []).map((item) => [item.element, Math.max(0, Number(item.percent) || 0)]));
+  const values = order.map((element) => ({ element, percent: byElement.get(element) || 0 }));
+  const maxScale = Math.max(30, ...values.map((item) => item.percent));
+  const center = 110;
+  const radius = 72;
+  const point = (index, scale = 1) => {
+    const angle = (-90 + index * 72) * Math.PI / 180;
+    return [
+      Number((center + Math.cos(angle) * radius * scale).toFixed(1)),
+      Number((center + Math.sin(angle) * radius * scale).toFixed(1)),
+    ];
+  };
+  const polygon = values
+    .map((item, index) => point(index, Math.min(1, item.percent / maxScale)).join(","))
+    .join(" ");
+  const rings = [0.33, 0.66, 1]
+    .map((scale) => `<polygon points="${order.map((_, index) => point(index, scale).join(",")).join(" ")}"></polygon>`)
+    .join("");
+  const axes = order
+    .map((_, index) => {
+      const [x, y] = point(index, 1);
+      return `<line x1="${center}" y1="${center}" x2="${x}" y2="${y}"></line>`;
     })
     .join("");
+  const labels = values
+    .map((item, index) => {
+      const [x, y] = point(index, 1.2);
+      return `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle">${item.element}${item.percent}%</text>`;
+    })
+    .join("");
+  const dots = values
+    .map((item, index) => {
+      const [x, y] = point(index, Math.min(1, item.percent / maxScale));
+      const color = elementColors[item.element] || "var(--gold)";
+      return `<circle cx="${x}" cy="${y}" r="4" style="--dot-color:${color}"></circle>`;
+    })
+    .join("");
+  const strongest = values.reduce((max, item) => (item.percent > max.percent ? item : max), values[0] || {});
+  const weakest = values.reduce((min, item) => (item.percent < min.percent ? item : min), values[0] || {});
+
+  elementBars.innerHTML = `
+    <div class="element-radar-card" aria-label="五行五维图">
+      <svg class="element-radar" viewBox="0 0 220 220" role="img" aria-label="木火土金水五行能量分布">
+        <g class="radar-grid">${rings}${axes}</g>
+        <polygon class="radar-shape" points="${polygon}"></polygon>
+        <g class="radar-dots">${dots}</g>
+        <g class="radar-labels">${labels}</g>
+      </svg>
+      <div class="element-radar-note">
+        <strong>${escapeHtml(strongest.element || "--")}最强 · ${escapeHtml(weakest.element || "--")}需补</strong>
+        <span>五维图按五行占比缩放，越靠外代表该能力越容易被调用。</span>
+      </div>
+    </div>
+  `;
 }
 
 function renderDomains(profile = {}, report = {}) {
@@ -582,11 +624,16 @@ function renderDomains(profile = {}, report = {}) {
 function renderSections(profile = {}, report = {}) {
   const sections = Array.isArray(report.sections) ? report.sections : [];
   const advice = Array.isArray(report.advice) ? report.advice : [];
-  const counselingPrompts = Array.isArray(report.counselingPrompts) ? report.counselingPrompts : [];
-  const keyPoints = Array.isArray(report.keyPoints) ? report.keyPoints : [];
   const html = [];
   const navItems = [];
+  const byTitle = new Map(sections.map((item) => [item.title, item]));
+  const compactSections = [
+    { source: "重点问题", title: "针对你的问题", featured: true },
+    { source: "命盘总览", title: "命盘主线" },
+    { source: "多术数交叉验证", title: "交叉验证" },
+  ];
   const pushSection = (title, body, options = {}) => {
+    if (!body && !(options.list || []).length) return;
     const index = navItems.length + 1;
     const id = `report-section-${index}`;
     navItems.push({ id, title });
@@ -605,32 +652,15 @@ function renderSections(profile = {}, report = {}) {
     `);
   };
 
-  pushSection("先看结论", plainSummaryText(profile, report), { featured: true });
+  pushSection("一眼结论", plainSummaryText(profile, report), { featured: true });
 
-  if (keyPoints.length) {
-    pushSection("命盘要点", "", { list: keyPoints, featured: true });
-  }
-
-  if (report.elementInsight) {
-    pushSection("五行分析", report.elementInsight);
-  }
-
-  for (const section of sections) {
-    pushSection(section.title || "命盘解读", section.body || "", {
-      featured: section.title === "重点问题" || section.title === "心理动力",
-    });
+  for (const item of compactSections) {
+    const section = byTitle.get(item.source);
+    pushSection(item.title, section?.body || "", { featured: item.featured });
   }
 
   if (advice.length) {
-    pushSection("行动建议", "", { list: advice, ordered: true, featured: true });
-  }
-
-  if (counselingPrompts.length) {
-    pushSection("自我提问", "", { list: counselingPrompts });
-  }
-
-  if (report.disclaimer) {
-    pushSection("边界说明", report.disclaimer);
+    pushSection("下一步行动", "", { list: advice.slice(0, 4), ordered: true, featured: true });
   }
 
   sectionList.innerHTML = html.join("") || `<p class="muted">报告会显示在这里。</p>`;
@@ -690,23 +720,17 @@ function reportToText(payload) {
     `本卦：${profile.hexagrams?.primary?.name || "--"}，变卦：${profile.hexagrams?.changed?.name || "--"}`,
   ];
 
-  if (Array.isArray(report.keyPoints) && report.keyPoints.length) {
-    parts.push("", "命盘要点", ...report.keyPoints.map((item) => `- ${item}`));
-  }
-
-  if (report.elementInsight) parts.push("", "五行分析", report.elementInsight);
-  const skillRows = mysticSkillRows(profile);
-  if (skillRows.length) {
-    parts.push("", "已挂载术数 Skill", ...skillRows.map((item) => `- ${item.name}：${item.title}｜${item.detail}`));
-  }
-  for (const section of report.sections || []) parts.push("", section.title || "命盘解读", section.body || "");
+  const byTitle = new Map((report.sections || []).map((item) => [item.title, item.body]));
+  [
+    ["针对你的问题", byTitle.get("重点问题")],
+    ["命盘主线", byTitle.get("命盘总览")],
+    ["交叉验证", byTitle.get("多术数交叉验证")],
+  ].forEach(([title, body]) => {
+    if (body) parts.push("", title, body);
+  });
 
   if (Array.isArray(report.advice) && report.advice.length) {
-    parts.push("", "行动建议", ...report.advice.map((item, index) => `${index + 1}. ${item}`));
-  }
-
-  if (Array.isArray(report.counselingPrompts) && report.counselingPrompts.length) {
-    parts.push("", "自我提问", ...report.counselingPrompts.map((item) => `- ${item}`));
+    parts.push("", "下一步行动", ...report.advice.slice(0, 4).map((item, index) => `${index + 1}. ${item}`));
   }
 
   if (report.disclaimer) parts.push("", report.disclaimer);
@@ -933,13 +957,21 @@ async function unlockReading(channel = "friend") {
 
 function handleInsufficientCredits(error, action) {
   if (error.code === "READING_LOCKED") {
-    showShareUnlockModal(action);
-    showToast("当前已改为免费体验，请刷新页面后再试。");
+    pendingAction = action || null;
+    hideModal(shareModal);
+    hideModal(payModal);
+    setResultState("empty");
+    loadAccount();
+    showToast("当前已改为免费体验，请重新点击开始起盘。");
     return true;
   }
   if (error.code === "INSUFFICIENT_CREDITS" || error.status === 402) {
-    showPayModal(action);
-    showToast("当前已改为免费体验，请刷新页面后再试。");
+    pendingAction = action || null;
+    hideModal(shareModal);
+    hideModal(payModal);
+    setResultState("empty");
+    loadAccount();
+    showToast("当前已改为免费体验，请重新点击开始起盘。");
     return true;
   }
   return false;
@@ -963,6 +995,8 @@ async function submitReading() {
     return;
   }
   setLoading(true);
+  hideModal(shareModal);
+  hideModal(payModal);
   setResultState("loading");
   try {
     const response = await fetch("/api/reading", {

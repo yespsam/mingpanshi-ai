@@ -229,17 +229,12 @@
       }
     };
 
-    add("先看结论", plainSummary, { featured: true });
-    add("总论", summary, { featured: true });
-    add("命盘要点", "", { list: report.keyPoints || [], featured: true });
-    add("五行分析", report.elementInsight);
-    for (const section of report.sections || []) {
-      add(section.title || "命盘解读", section.body || "", {
-        featured: section.title === "重点问题" || section.title === "心理动力",
-      });
-    }
-    add("行动建议", "", { list: report.advice || [], ordered: true, featured: true });
-    add("自我提问", "", { list: report.counselingPrompts || [] });
+    const byTitle = new Map((report.sections || []).map((item) => [item.title, item.body]));
+    add("一眼结论", plainSummary, { featured: true });
+    add("针对你的问题", byTitle.get("重点问题") || summary, { featured: true });
+    add("命盘主线", byTitle.get("命盘总览") || "");
+    add("交叉验证", byTitle.get("多术数交叉验证") || "");
+    add("下一步行动", "", { list: (report.advice || []).slice(0, 4), ordered: true, featured: true });
     add("边界说明", report.disclaimer || "报告仅供娱乐与自我反思，不作为医疗、法律、投资或人生重大决策依据。");
 
     const pillarText = [
