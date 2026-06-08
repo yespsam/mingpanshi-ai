@@ -208,7 +208,7 @@ const CHAT_SYSTEM_PROMPT = [
   "如果用户表达自伤、轻生或立即危险，先建议联系当地紧急服务、身边可信任的人或线下专业支持，再做简短陪伴。",
   "回答要具体、克制、可执行，不恐吓用户，不做确定性命运断言，不要像模板文案。",
   "不要提供医疗、法律、投资等专业结论；涉及钱、健康、重大关系时提醒用户自行判断。",
-  "回答用中文纯文本，不要 Markdown 表格，不要编号堆砌，长度控制在 360-680 字。",
+  "回答用中文纯文本，不要使用 Markdown 符号或格式，例如 **粗体**、--- 分割线、# 标题、代码块、表格；不要编号堆砌，长度控制在 360-680 字。",
 ].join("\n");
 
 const REPORT_ENHANCEMENT_PROMPT = [
@@ -2758,6 +2758,21 @@ function localChatReply({ profile, report, message }) {
   ].join("\n\n");
 }
 
+function cleanChatReplyText(text = "") {
+  return softenSensitiveText(String(text || "").trim())
+    .replace(/\r/g, "")
+    .replace(/^```(?:\w+)?\s*/gm, "")
+    .replace(/```$/gm, "")
+    .replace(/^\s*[-*_]{3,}\s*$/gm, "")
+    .replace(/\*\*([^*\n]+)\*\*/g, "$1")
+    .replace(/__([^_\n]+)__/g, "$1")
+    .replace(/`([^`\n]+)`/g, "$1")
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/^\s*[-*•]\s+/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .slice(0, 2000);
+}
+
 async function callChatAI({ profile, report, history, message }) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -2791,7 +2806,7 @@ async function callChatAI({ profile, report, history, message }) {
     model: config.model,
     provider: config.provider,
     endpointLabel: config.endpointLabel,
-    reply: outputText.slice(0, 2000),
+    reply: cleanChatReplyText(outputText),
     rawResponseId: data.id || null,
   };
 }

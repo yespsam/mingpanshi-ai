@@ -37,8 +37,11 @@ function reportToText(payload = {}) {
   const byTitle = new Map((report.sections || []).map((item) => [item.title, item.body]));
   [
     ["针对你的问题", byTitle.get("重点问题")],
-    ["命盘主线", byTitle.get("命盘总览")],
+    ["命盘主线", byTitle.get("命盘主线") || byTitle.get("命盘总览")],
+    ["五行五维", byTitle.get("五行五维") || byTitle.get("五行能量") || report.elementInsight],
+    ["卦象与变化点", byTitle.get("卦象与变化点") || byTitle.get("六爻卦象")],
     ["交叉验证", byTitle.get("多术数交叉验证")],
+    ["现实行动", byTitle.get("现实行动")],
   ].forEach(([title, body]) => {
     if (body) parts.push("", title, body);
   });

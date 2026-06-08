@@ -232,8 +232,11 @@
     const byTitle = new Map((report.sections || []).map((item) => [item.title, item.body]));
     add("一眼结论", plainSummary, { featured: true });
     add("针对你的问题", byTitle.get("重点问题") || summary, { featured: true });
-    add("命盘主线", byTitle.get("命盘总览") || "");
+    add("命盘主线", byTitle.get("命盘主线") || byTitle.get("命盘总览") || "");
+    add("五行五维", byTitle.get("五行五维") || byTitle.get("五行能量") || report.elementInsight || "");
+    add("卦象与变化点", byTitle.get("卦象与变化点") || byTitle.get("六爻卦象") || "");
     add("交叉验证", byTitle.get("多术数交叉验证") || "");
+    add("现实行动", byTitle.get("现实行动") || "", { featured: true });
     add("下一步行动", "", { list: (report.advice || []).slice(0, 4), ordered: true, featured: true });
     add("边界说明", report.disclaimer || "报告仅供娱乐与自我反思，不作为医疗、法律、投资或人生重大决策依据。");
 
