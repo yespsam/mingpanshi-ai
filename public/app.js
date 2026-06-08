@@ -46,6 +46,10 @@ const luckyBox = $("#luckyBox");
 const chatMessages = $("#chatMessages");
 const fullReportSection = $("#fullReportSection");
 const fullReportBody = $("#fullReportBody");
+const growthPanel = $("#growthPanel");
+const posterPreview = $("#posterPreview");
+const deepUnlockBtn = $("#deepUnlockBtn");
+const posterCopyBtn = $("#posterCopyBtn");
 
 const payModal = $("#payModal");
 const payCloseBtn = $("#payCloseBtn");
@@ -70,6 +74,7 @@ let account = null;
 let currentConversationId = "";
 let pendingAction = null;
 let enhancementRequestId = 0;
+let lastPosterText = "";
 
 const elementColors = {
   木: "var(--green)",
@@ -699,6 +704,72 @@ function renderLucky(profile = {}, report = {}) {
   ].join("<br />");
 }
 
+function posterKeywords(profile = {}, report = {}) {
+  const focus = profile.user?.questionIntent?.label || profile.user?.focusLabel || "命盘解析";
+  const elements = profile.elements || [];
+  const strongest = elements[0]?.element ? `${elements[0].element}旺` : "";
+  const weakest = elements[elements.length - 1]?.element ? `${elements[elements.length - 1].element}需补` : "";
+  const hexagram = profile.hexagrams?.primary?.name && profile.hexagrams?.changed?.name
+    ? `${profile.hexagrams.primary.name}->${profile.hexagrams.changed.name}`
+    : "";
+  return [focus, strongest, weakest, hexagram, ...(report.tags || [])]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .filter((item) => !/Kimi|真太阳时|多术数/.test(item))
+    .slice(0, 4);
+}
+
+function buildPosterText(profile = {}, report = {}) {
+  const name = profile.user?.name || "我的";
+  const question = profile.user?.question || "当前问题";
+  const elements = (profile.elements || []).map((item) => `${item.element}${item.percent}%`).join(" / ");
+  const keywords = posterKeywords(profile, report).join(" · ");
+  const firstLine = plainSummaryText(profile, report).split(/\n+/)[0] || report.summary || "命盘报告已生成。";
+  return [
+    `命盘师 AI 命盘报告｜${name}`,
+    `问题：${question}`,
+    `关键词：${keywords || "命盘解析"}`,
+    `五行：${elements || "--"}`,
+    `结论：${firstLine}`,
+    `打开生成你的命盘：${location.origin}`,
+  ].join("\n");
+}
+
+function renderGrowthPanel(profile = {}, report = {}) {
+  if (!growthPanel || !posterPreview) return;
+  const pillars = profile.pillars || {};
+  const elements = profile.elements || [];
+  const strongest = elements[0] || {};
+  const weakest = elements[elements.length - 1] || {};
+  const keywords = posterKeywords(profile, report);
+  const firstLine = (plainSummaryText(profile, report).split(/\n+/)[0] || report.summary || "命盘报告已生成。").slice(0, 86);
+  lastPosterText = buildPosterText(profile, report);
+  posterPreview.innerHTML = `
+    <div class="poster-top">
+      <span>&lt;命盘师/&gt;</span>
+      <strong>${escapeHtml(profile.user?.focusLabel || "AI 命盘解析")}</strong>
+    </div>
+    <h3>${escapeHtml(profile.user?.name || "我的")}命盘信号</h3>
+    <p>${escapeHtml(firstLine)}</p>
+    <div class="poster-keywords">
+      ${keywords.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+    </div>
+    <div class="poster-matrix">
+      <span>四柱</span>
+      <strong>${escapeHtml([pillars.year?.name, pillars.month?.name, pillars.day?.name, pillars.hour?.name].filter(Boolean).join(" / ") || "--")}</strong>
+    </div>
+    <div class="poster-matrix">
+      <span>五行</span>
+      <strong>${escapeHtml(strongest.element || "--")}旺 / ${escapeHtml(weakest.element || "--")}需补</strong>
+    </div>
+    <div class="poster-footer">
+      <span>扫码进入小程序</span>
+      <i aria-hidden="true"></i>
+    </div>
+  `;
+  growthPanel.hidden = false;
+}
+
 function normalizedReportTitle(value) {
   const title = String(value || "").trim();
   if (!title || title.includes("玄策")) return "命盘师命盘报告";
@@ -827,6 +898,7 @@ function renderReport(payload) {
   renderSections(profile, report);
   renderAnnual(profile, report);
   renderLucky(profile, report);
+  renderGrowthPanel(profile, report);
   renderChat(payload.conversation?.messages || []);
   currentConversationId = payload.conversationId || payload.conversation?.id || "";
   lastReportText = reportToText(payload);
@@ -835,7 +907,7 @@ function renderReport(payload) {
   setResultState("report");
   maybeStartReportEnhancement(payload);
   window.setTimeout(() => {
-    fullReportSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+    reportContent?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, 120);
 }
 
@@ -867,6 +939,9 @@ function resetView() {
   luckyBox.textContent = "幸运提示等待生成";
   currentConversationId = "";
   lastReportText = "";
+  lastPosterText = "";
+  if (growthPanel) growthPanel.hidden = true;
+  if (posterPreview) posterPreview.innerHTML = "";
   if (fullReportBody) fullReportBody.innerHTML = "";
   if (fullReportSection) fullReportSection.hidden = true;
   renderChat([]);
@@ -890,10 +965,16 @@ async function copyReportText(successMessage = "报告已复制。") {
 
 function sharePayload(channel) {
   const link = location.origin;
-  if (channel === "timeline") {
-    return `命盘师命盘解析：分享即可免费解锁 1 次测算。${link}`;
+  if (lastPosterText) {
+    const prefix = channel === "timeline"
+      ? "我刚生成了一份 AI 命盘报告，分享解锁深度版："
+      : "这份 AI 命盘报告挺有意思，分享可解锁深度版：";
+    return `${prefix}\n\n${lastPosterText}\n\n${link}`;
   }
-  return `我在用命盘师生成命盘报告，分享可免费解锁 1 次测算：${link}`;
+  if (channel === "timeline") {
+    return `命盘师 AI 命盘解析：分享即可解锁深度报告。${link}`;
+  }
+  return `我在用命盘师生成 AI 命盘报告，分享可解锁深度报告：${link}`;
 }
 
 async function copySharePayload(channel) {
@@ -944,7 +1025,7 @@ async function unlockReading(channel = "friend") {
     if (!response.ok || !data.ok) throw new Error(data.message || "解锁失败");
     renderAccount(data.account);
     hideModal(shareModal);
-    showToast(channel === "timeline" ? "朋友圈文案已复制。" : "分享链接已复制。");
+    showToast(channel === "timeline" ? "朋友圈海报文案已复制。" : "好友分享卡片已复制。");
     const action = pendingAction;
     pendingAction = null;
     if (typeof action === "function") action();
@@ -1110,6 +1191,19 @@ againBtn?.addEventListener("click", () => {
 });
 shareBtn?.addEventListener("click", () => showShareUnlockModal());
 unlockShareBtn?.addEventListener("click", () => showShareUnlockModal());
+deepUnlockBtn?.addEventListener("click", () => showShareUnlockModal());
+posterCopyBtn?.addEventListener("click", async () => {
+  if (!lastPosterText) {
+    showToast("请先生成一份报告。");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(lastPosterText);
+    showToast("报告海报文案已复制。");
+  } catch (error) {
+    showToast(lastPosterText);
+  }
+});
 buyPackBtn?.addEventListener("click", () => revealMarketingSection("pricing"));
 railShareBtn?.addEventListener("click", () => showShareUnlockModal());
 railBuyBtn?.addEventListener("click", () => revealMarketingSection("pricing"));

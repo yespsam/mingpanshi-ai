@@ -6,7 +6,7 @@
     <title>命盘师 | AI 命盘解析</title>
     <meta name="description" content="命盘师：AI 命理引擎，结合周易命盘、五行卦象与对话追问，生成事业、感情、财运、流年等多维分析。" />
     <link rel="icon" href="/logo.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=20260606-1" />
+    <link rel="stylesheet" href="/styles.css?v=20260608-4" />
   </head>
   <body>
     <header class="site-header">
@@ -19,7 +19,7 @@
       </a>
       <nav class="topnav" aria-label="页面导航">
         <a href="#analysis">命盘终端</a>
-        <a href="#sample">样例输出</a>
+        <a href="#features">产品特性</a>
         <a href="#flow">流年信号</a>
         <a href="#pricing">体验说明</a>
         <a href="#records">记录库</a>
@@ -45,7 +45,7 @@
           </div>
           <div class="hero-actions">
             <a class="primary-button" href="#analysis">启动测算</a>
-            <a class="secondary-button" href="#sample">查看样例</a>
+            <a class="secondary-button" href="#features">产品特性</a>
           </div>
         </div>
 
@@ -73,6 +73,36 @@
               <div><span>READING</span><strong>FREE_BETA</strong></div>
               <div><span>CHAT</span><strong>FREE_BETA</strong></div>
             </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="product-feature-section" id="features" aria-label="命盘师产品特性">
+        <div class="feature-head">
+          <span class="section-kicker">PRODUCT SIGNAL</span>
+          <h2>不是普通 AI 文案，而是一套可追问的命盘产品</h2>
+          <p>先由规则引擎排出四柱、五行、卦象和流年，再交给 Kimi 融合成白话判断。报告不是终点，追问、保存和分享才是产品闭环。</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <span>01</span>
+            <h3>结构化排盘</h3>
+            <p>出生信息先进入四柱、五行、卦象、真太阳时校正，不让模型凭空发挥。</p>
+          </article>
+          <article class="feature-card">
+            <span>02</span>
+            <h3>Kimi 融合测算</h3>
+            <p>围绕用户原问题生成判断，事业看筹码，感情看回应，财运看边界。</p>
+          </article>
+          <article class="feature-card">
+            <span>03</span>
+            <h3>对话式追问</h3>
+            <p>报告生成后继续问具体处境，让命盘从一次性报告变成长期记录。</p>
+          </article>
+          <article class="feature-card">
+            <span>04</span>
+            <h3>分享裂变玩法</h3>
+            <p>报告海报、好友分享、朋友圈文案和深度报告解锁，为小程序转发做准备。</p>
           </article>
         </div>
       </section>
@@ -338,6 +368,26 @@ console.log(report.pillars);</code></pre>
                   <div class="lucky-box" id="luckyBox">幸运提示等待生成</div>
                 </aside>
               </div>
+              <article class="panel growth-panel" id="growthPanel" hidden>
+                <div class="section-heading">
+                  <div>
+                    <p>SHARE LOOP</p>
+                    <small>用报告海报承接好友传播，后续小程序可接原生转发</small>
+                  </div>
+                </div>
+                <div class="growth-grid">
+                  <div class="poster-preview" id="posterPreview" aria-label="报告海报预览"></div>
+                  <div class="unlock-copy">
+                    <span class="section-kicker">DEEP REPORT</span>
+                    <h3>分享解锁深度报告</h3>
+                    <p>用户完成基础测算后，可通过好友或朋友圈分享解锁“重点问题深度版”，形成免费体验、社交传播和付费追问的闭环。</p>
+                    <div class="unlock-actions">
+                      <button class="primary-button" id="deepUnlockBtn" type="button">分享解锁深度报告</button>
+                      <button class="secondary-button" id="posterCopyBtn" type="button">复制海报文案</button>
+                    </div>
+                  </div>
+                </div>
+              </article>
               <div class="result-actions">
                 <button class="secondary-button" id="saveBtn" type="button">保存报告</button>
                 <button class="secondary-button" id="openReportBtn" type="button">打开完整报告</button>
@@ -462,10 +512,10 @@ console.log(report.pillars);</code></pre>
       <div class="modal-card share-card">
         <button class="modal-close" id="shareCloseBtn" type="button">×</button>
         <div class="modal-icon gift">礼</div>
-        <h2>分享命盘师</h2>
-        <p>当前不需要分享解锁；这里仅用于复制分享链接或朋友圈文案。小程序版本后续会接入微信原生转发。</p>
-        <button class="primary-button" id="posterBtn" type="button">复制好友分享文案</button>
-        <button class="secondary-button" id="inviteBtn" type="button">复制朋友圈文案</button>
+        <h2>分享解锁深度报告</h2>
+        <p>网页版本先复制分享文案；小程序版本会接入微信原生转发，好友打开后双方获得测算或追问奖励。</p>
+        <button class="primary-button" id="posterBtn" type="button">复制好友分享卡片</button>
+        <button class="secondary-button" id="inviteBtn" type="button">复制朋友圈海报文案</button>
       </div>
     </div>
 
@@ -482,7 +532,7 @@ console.log(report.pillars);</code></pre>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="/report-view.js?v=20260608-1"></script>
-    <script src="/app.js?v=20260608-1"></script>
+    <script src="/report-view.js?v=20260608-4"></script>
+    <script src="/app.js?v=20260608-4"></script>
   </body>
 </html>
