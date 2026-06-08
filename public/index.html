@@ -6,7 +6,7 @@
     <title>命盘师 | AI 命盘解析</title>
     <meta name="description" content="命盘师：AI 命理引擎，结合周易命盘、五行卦象与对话追问，生成事业、感情、财运、流年等多维分析。" />
     <link rel="icon" href="/logo.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=20260608-5" />
+    <link rel="stylesheet" href="/styles.css?v=20260608-7" />
   </head>
   <body>
     <header class="site-header">
@@ -136,46 +136,46 @@
             <div class="flow-steps" aria-label="使用流程">
               <article>
                 <span>01</span>
-                <strong>OPERATOR INPUT</strong>
+                <strong>填写资料</strong>
                 <p>录入出生信息</p>
               </article>
               <article>
                 <span>02</span>
-                <strong>BIRTH MATRIX</strong>
-                <p>生成命盘矩阵</p>
+                <strong>生成命盘</strong>
+                <p>生成四柱命盘</p>
               </article>
               <article>
                 <span>03</span>
-                <strong>WUXING SIGNAL</strong>
+                <strong>五行分析</strong>
                 <p>读取五行能量</p>
               </article>
               <article>
                 <span>04</span>
-                <strong>OUTPUT STREAM</strong>
-                <p>AI 输出解读</p>
+                <strong>生成报告</strong>
+                <p>整理报告图</p>
               </article>
               <article>
                 <span>05</span>
-                <strong>CHAT MODE</strong>
-                <p>继续追问</p>
+                <strong>继续追问</strong>
+                <p>报告后追问</p>
               </article>
             </div>
 
             <div class="desk-grid">
               <section class="form-card" aria-labelledby="formTitle">
                 <div class="module-title">
-                  <span>OPERATOR INPUT // 操作员输入端</span>
+                  <span>填写资料</span>
                   <div aria-hidden="true"><i></i><i></i><i></i></div>
                 </div>
                 <p class="terminal-prompt">>>> 请输入出生信息以启动命盘解析</p>
                 <div class="quota-card">
                   <div>
-                    <span>READ_MODE</span>
+                    <span>测算</span>
                     <strong id="readingUnlockCount">FREE</strong>
                     <small>测试期免费测算</small>
                   </div>
                   <div>
-                    <span>CHAT_MODE</span>
+                    <span>追问</span>
                     <strong id="chatCreditCount">FREE</strong>
                     <small>测试期免费追问</small>
                   </div>
@@ -187,7 +187,7 @@
 
                 <div class="section-heading">
                   <div>
-                    <p>INPUT PROFILE</p>
+                    <p>基础资料</p>
                     <small>信息越完整，矩阵解析越准确</small>
                   </div>
                   <button class="ghost-button" id="resetBtn" type="button">清空重填</button>
@@ -281,31 +281,28 @@
 
               <section class="matrix-panel code-data-panel" aria-label="命盘数据预览">
                 <div class="module-title">
-                  <span>BIRTH_MATRIX.JSON // 命盘数据</span>
+                  <span>命盘数据预览</span>
                   <div aria-hidden="true"><i></i><i></i><i></i></div>
                 </div>
-                <pre class="code-output" id="pillarCode" aria-label="四柱代码输出"><code>{
-  "status": "waiting",
-  "year_pillar": "--",
-  "month_pillar": "--",
-  "day_pillar": "--",
-  "hour_pillar": "--",
-  "day_master": "--",
-  "true_solar_time": "waiting"
-}</code></pre>
-                <pre class="code-output dim" id="runtimeCode" aria-label="运行日志"><code>$ mps.read --input birth.json
-WAITING_FOR_OPERATOR_INPUT
-NO_GRAPHICS_MODE=true</code></pre>
+                <pre class="code-output" id="pillarCode" aria-label="四柱代码输出"><code>
+年柱：--
+月柱：--
+日柱：--
+时柱：--
+日主：--
+真太阳时：等待填写</code></pre>
+                <pre class="code-output dim" id="runtimeCode" aria-label="运行日志"><code>排盘状态：等待填写出生信息
+报告形式：生成单张 AI 命盘报告图</code></pre>
               </section>
 
               <section class="result-card" id="report" aria-live="polite">
                 <div class="module-title">
-                  <span>OUTPUT STREAM // AI 输出流</span>
+                  <span>AI 命盘报告</span>
                   <div aria-hidden="true"><i></i><i></i><i></i></div>
                 </div>
             <div class="result-top">
               <div>
-                <span class="section-kicker">OUTPUT CONSOLE</span>
+                <span class="section-kicker">报告摘要</span>
                 <h2 id="reportTitle">等待解析</h2>
                 <p id="summary">等待解析结果，填写资料后生成完整命盘，再输出专属报告。</p>
               </div>
@@ -349,25 +346,25 @@ console.log(report.pillars);</code></pre>
               <nav class="report-nav" id="reportNav" aria-label="报告目录"></nav>
               <div class="report-summary-grid">
                 <article class="panel">
-                  <div class="section-heading"><p>BIRTH MATRIX</p></div>
+                  <div class="section-heading"><p>四柱命盘</p></div>
                   <dl class="pillar-list" id="pillarList"></dl>
                 </article>
                 <article class="panel">
-                  <div class="section-heading"><p>WUXING SIGNAL</p></div>
+                  <div class="section-heading"><p>五行五维图</p></div>
                   <div class="element-bars" id="elementBars"></div>
                 </article>
               </div>
               <article class="panel">
-                <div class="section-heading"><p>DOMAIN ANALYSIS</p></div>
+                <div class="section-heading"><p>关注维度</p></div>
                 <div class="domain-list" id="domainList"></div>
               </article>
               <div class="report-grid">
                 <article class="panel report-panel">
-                  <div class="section-heading"><p>AI ORACLE REPORT</p></div>
+                  <div class="section-heading"><p>AI 解读</p></div>
                   <div id="sectionList" class="section-list"></div>
                 </article>
                 <aside class="panel annual-panel" id="flow">
-                  <div class="section-heading"><p>YEARLY SIGNAL</p></div>
+                  <div class="section-heading"><p>流年节奏</p></div>
                   <div class="annual-list" id="annualList"></div>
                   <div class="lucky-box" id="luckyBox">幸运提示等待生成</div>
                 </aside>
@@ -375,7 +372,7 @@ console.log(report.pillars);</code></pre>
               <article class="panel growth-panel" id="growthPanel" hidden>
                 <div class="section-heading">
                   <div>
-                    <p>SHARE LOOP</p>
+                    <p>分享解锁</p>
                     <small>用报告海报承接好友传播，后续小程序可接原生转发</small>
                   </div>
                 </div>
@@ -536,7 +533,7 @@ console.log(report.pillars);</code></pre>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="/report-view.js?v=20260608-5"></script>
-    <script src="/app.js?v=20260608-5"></script>
+    <script src="/report-view.js?v=20260608-7"></script>
+    <script src="/app.js?v=20260608-7"></script>
   </body>
 </html>

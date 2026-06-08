@@ -484,7 +484,7 @@ function buildReportImageUrl(profile = {}, report = {}, payload = {}) {
   ${svgText(`${provider} AI 命盘报告`, 58, 124, { size: 40, fill: "#f2fff6", weight: 900 })}
   ${svgText(`${profile.user?.name || "你的"} · ${focus}`, 58, 166, { size: 24, fill: "#a8f7c2", weight: 700 })}
   <rect x="470" y="58" width="130" height="42" rx="21" fill="rgba(0,255,112,.13)" stroke="rgba(0,255,112,.42)"/>
-  ${svgText("REPORT", 535, 86, { size: 18, fill: "#25ff82", weight: 900, anchor: "middle", family: "SFMono-Regular, Menlo, Consolas, monospace" })}
+  ${svgText("报告图", 535, 86, { size: 18, fill: "#25ff82", weight: 900, anchor: "middle" })}
 
   <rect x="58" y="198" width="604" height="176" rx="20" fill="rgba(0,0,0,.44)" stroke="rgba(0,255,112,.26)"/>
   ${svgText("大白话结论", 82, 238, { size: 22, fill: "#25ff82", weight: 900, family: "SFMono-Regular, Menlo, Consolas, monospace" })}
@@ -697,20 +697,26 @@ function pillarSnapshot(profile = {}) {
 function renderPillarCode(profile = {}, report = {}) {
   if (!pillarCode) return;
   const snapshot = pillarSnapshot(profile);
-  pillarCode.innerHTML = `<code>${escapeHtml(JSON.stringify(snapshot, null, 2))}</code>`;
+  const trueSolarLine = snapshot.true_solar_time !== "not_applied"
+    ? `${snapshot.birth_place} · ${snapshot.true_solar_time}（${snapshot.solar_offset_minutes >= 0 ? "+" : ""}${snapshot.solar_offset_minutes} 分钟）`
+    : "未校正 / 等待出生城市";
+  const displayPillar = (value) => (value === "unknown_birth_time" ? "待填写" : value);
+  const lines = [
+    `年柱：${displayPillar(snapshot.year_pillar)}`,
+    `月柱：${displayPillar(snapshot.month_pillar)}`,
+    `日柱：${displayPillar(snapshot.day_pillar)}`,
+    `时柱：${displayPillar(snapshot.hour_pillar)}`,
+    `日主：${displayPillar(snapshot.day_master)}`,
+    `真太阳时：${trueSolarLine}`,
+  ];
+  pillarCode.innerHTML = `<code>${escapeHtml(lines.join("\n"))}</code>`;
   if (runtimeCode) {
-    const lines = [
-      "$ mps.read --input birth.json --format code",
-      `[OK] year_pillar=${snapshot.year_pillar}`,
-      `[OK] month_pillar=${snapshot.month_pillar}`,
-      `[OK] day_pillar=${snapshot.day_pillar}`,
-      `[OK] hour_pillar=${snapshot.hour_pillar}`,
-      snapshot.true_solar_time !== "not_applied"
-        ? `[OK] true_solar_time=${snapshot.true_solar_time} (${snapshot.solar_offset_minutes >= 0 ? "+" : ""}${snapshot.solar_offset_minutes}m)`
-        : `[INFO] true_solar_time=${snapshot.calibration}`,
-      `[OUT] ${report.title ? "report.compact.ready" : "waiting_for_operator_input"}`,
+    const statusLines = [
+      `排盘状态：${report.title ? "已生成 AI 命盘报告图" : "等待填写出生信息"}`,
+      `四柱完整度：${[snapshot.year_pillar, snapshot.month_pillar, snapshot.day_pillar, snapshot.hour_pillar].filter((item) => item && item !== "--" && item !== "unknown_birth_time").length}/4`,
+      `报告形式：单张图片 + 可追问对话`,
     ];
-    runtimeCode.innerHTML = `<code>${escapeHtml(lines.join("\n"))}</code>`;
+    runtimeCode.innerHTML = `<code>${escapeHtml(statusLines.join("\n"))}</code>`;
   }
 }
 

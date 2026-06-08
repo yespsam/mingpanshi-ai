@@ -52,7 +52,7 @@ function reportToText(payload = {}) {
 function renderEmpty() {
   root.innerHTML = `
     <section class="readable-report-empty">
-      <span class="reader-kicker">NO_REPORT_FOUND</span>
+      <span class="reader-kicker">未找到报告</span>
       <h1>还没有可读取的命盘报告</h1>
       <p>请先回到命盘终端生成报告，再打开完整报告页。</p>
       <a class="primary-button" href="/?fresh=20260602-2">返回生成报告</a>

@@ -156,7 +156,7 @@
     return `
       <section class="reader-section featured" id="reader-domain">
         <div class="reader-section-title">
-          <span>DN</span>
+          <span>维度</span>
           <h3>事业 / 感情 / 财运 / 学业 / 身心</h3>
         </div>
         <div class="reader-domain-grid">
@@ -257,7 +257,7 @@
       <article class="readable-report">
         <header class="reader-hero">
           <div>
-            <span class="reader-kicker">FULL REPORT // READABLE MODE</span>
+            <span class="reader-kicker">完整报告阅读版</span>
             <h2>${escapeHtml(title)}</h2>
             <p>${escapeHtml(compact(plainSummary, 260))}</p>
           </div>
@@ -275,7 +275,7 @@
 
         <div class="reader-layout">
           <nav class="reader-toc" aria-label="完整报告目录">
-            <strong>REPORT INDEX</strong>
+            <strong>报告目录</strong>
             <a href="#reader-skills">已挂载术数 Skill</a>
             ${sections.map((item) => `<a href="#${item.id}">${escapeHtml(item.title)}</a>`).join("")}
             <a href="#reader-domain">多维分析</a>
