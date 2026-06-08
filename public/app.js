@@ -425,12 +425,12 @@ function renderMysticSkillPanel(profile = {}) {
 
 function renderResultMeta(payload = {}) {
   if (!resultMeta) return;
-  const label = "命盘师生成";
+  const label = payload.provider ? `${payload.provider} 融合测算` : "命盘师生成";
   const status = payload.enhancement?.status || payload.conversation?.enhancement?.status || "";
   const statusLabel = {
-    pending: "Kimi 深度增强待处理",
-    processing: "Kimi 深度增强中",
-    complete: "Kimi 深度增强完成",
+    pending: "等待 Kimi 融合增强",
+    processing: "Kimi 正在融合测算",
+    complete: "Kimi 融合测算完成",
     failed: "基础报告已完成",
     unavailable: "基础报告已完成",
   }[status] || "已完成";
@@ -760,7 +760,7 @@ async function requestReportEnhancement(conversationId, requestId) {
     if (data.enhancement?.status === "complete") {
       renderAccount(data.account);
       renderReport(data);
-      showToast("Kimi 深度增强已完成，报告已自动更新。");
+      showToast("Kimi 融合测算已完成，报告已自动更新。");
       return;
     }
     renderResultMeta(data);
