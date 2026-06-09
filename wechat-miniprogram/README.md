@@ -15,13 +15,13 @@
 4. 当前 `config.js` 默认指向 Netlify HTTPS 后端：
 
 ```text
-https://mingpanshi-ai.netlify.app
+https://mingpanshi-ai.pages.dev
 ```
 
 ## 正式上架前必须做
 
 1. 把 `project.config.json` 里的 `appid` 改成你自己的小程序 AppID。
-2. 在微信公众平台后台把 `https://mingpanshi-ai.netlify.app` 配置为 `request` 合法域名；如果微信要求自有/备案域名，就需要换成你购买并备案的域名。
+2. 在微信公众平台后台把后端 HTTPS 域名配置为 `request` 合法域名；当前测试域名是 `https://mingpanshi-ai.pages.dev`，正式提审建议换成你自己的已备案域名。
 3. 后端域名需要稳定可用，不能用临时隧道。
 4. 如果后续换自有域名，把 `config.js` 的 `API_BASE_URL` 改成你的正式 HTTPS 域名。
 5. 按小程序后台要求完成类目、隐私、用户协议、备案和审核资料。

@@ -28,6 +28,7 @@ Page({
       name: "",
       birthDate: "",
       birthTime: "",
+      birthPlace: "",
       gender: "",
       focus: "auto",
       question: ""

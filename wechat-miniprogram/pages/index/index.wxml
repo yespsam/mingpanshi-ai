@@ -56,6 +56,11 @@
     </view>
 
     <view class="field">
+      <view class="label">出生城市</view>
+      <input class="control" value="{{form.birthPlace}}" data-key="birthPlace" placeholder="例如：上海 / 北京 / 成都" bindinput="onInput" />
+    </view>
+
+    <view class="field">
       <view class="label">性别 / 身份</view>
       <picker value="{{genderIndex}}" range="{{genderOptions}}" bindchange="onGenderChange">
         <view class="control picker-value">{{genderOptions[genderIndex]}}</view>

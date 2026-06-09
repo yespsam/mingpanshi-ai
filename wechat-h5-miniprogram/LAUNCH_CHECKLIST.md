@@ -3,7 +3,7 @@
 ## 已完成
 
 - H5 小程序壳：`pages/web/index`
-- `web-view` 指向线上 H5：`https://mingpanshi-ai.netlify.app/?from=miniprogram`
+- `web-view` 指向线上 H5：`https://mingpanshi-ai.pages.dev/?from=miniprogram`
 - 分享给好友与朋友圈入口
 - 线上 H5 UI、Kimi API、报告生成与对话额度逻辑
 - 产品说明、用户协议、隐私政策、联系方式页面
@@ -14,8 +14,9 @@
    - 修改 `project.config.json` 中的 `appid`
 
 2. web-view 业务域名
-   - 微信公众平台配置：`https://mingpanshi-ai.netlify.app`
-   - 如果改自有域名，需要同步修改 `config.js`
+   - 微信公众平台配置：`https://mingpanshi-ai.pages.dev`
+   - 正式提审建议换成你自己的已备案 HTTPS 域名，并同步修改 `config.js`
+   - `pages.dev` 适合当前测试和演示，但可能无法通过微信后台的业务域名/备案校验
 
 3. 域名校验文件
    - 微信后台下载校验文件
