@@ -21,6 +21,12 @@
 LAUNCH_CHECKLIST.md
 ```
 
+提交审核步骤见：
+
+```text
+SUBMIT_GUIDE.md
+```
+
 ## 导入路径
 
 ```text
