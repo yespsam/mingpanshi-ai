@@ -6,11 +6,12 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "check": "node --check server.js && node --check netlify/functions/api.mjs && node --check public/app.js"
+    "check": "node --check server.js && node --check bazi-ziwei-adapter.js && node --check mystic-systems.js && node --check netlify/functions/api.mjs && node --check public/app.js"
   },
   "dependencies": {
     "@netlify/blobs": "^9.1.2",
-    "lunar-javascript": "^1.7.7"
+    "lunar-javascript": "^1.7.7",
+    "lunar-typescript": "^1.8.6"
   },
   "engines": {
     "node": ">=20"

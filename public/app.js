@@ -1274,6 +1274,14 @@ async function submitReading() {
     showToast("请先填写出生日期。");
     return;
   }
+  if (!payload.birthTime) {
+    showToast("请先填写出生时间，八字和紫微都需要时辰。");
+    return;
+  }
+  if (!["男", "女"].includes(payload.gender)) {
+    showToast("请先选择排盘性别。");
+    return;
+  }
   setLoading(true);
   hideModal(shareModal);
   hideModal(payModal);

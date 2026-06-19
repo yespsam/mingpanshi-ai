@@ -156,29 +156,58 @@ function buildTenGods({ pillars }) {
 }
 
 function buildBaziLayer(ctx) {
-  const { pillars, elements, strongest, weakest, user } = ctx;
-  const tenGods = buildTenGods(ctx);
+  const { pillars, strongest, weakest, user, baziZiwei } = ctx;
+  const skillBazi = baziZiwei?.bazi || {};
+  const enrichment = skillBazi.enrichment || {};
+  const tenGods = skillBazi.tenGods
+    ? Object.entries(skillBazi.tenGods).map(([pillar, relation]) => ({
+      pillar,
+      stem: stemName(pillars?.[pillar]),
+      relation,
+      plain: relationPlain(relation),
+    })).filter((item) => item.stem)
+    : buildTenGods(ctx);
   const dayBranch = branchName(pillars?.day);
   const monthBranch = branchName(pillars?.month);
   const hourBranch = branchName(pillars?.hour);
+  const geJu = enrichment.格局;
+  const wangShuai = enrichment.旺衰;
+  const tiaoHou = enrichment.调候用神 || [];
+  const strongestStat = enrichment.五行统计?.strongest?.join("、") || strongest?.element;
+  const missingStat = enrichment.五行统计?.missing?.join("、") || "";
   return {
     method: "四柱八字结构层",
-    calculationPolicy: "四柱、节气和真太阳时由后端历法引擎计算，解读层不手算干支。",
-    dayMaster: stemName(pillars?.day),
+    calculationPolicy: baziZiwei?.calculationPolicy || "四柱由后端确定性历法引擎计算，解读层不手算干支。",
+    engine: baziZiwei?.source || "local-lunar-engine",
+    dayMaster: skillBazi.dayMaster || stemName(pillars?.day),
     dayBranch,
     monthBranch,
     hourBranch: hourBranch || "未知",
     tenGods,
+    geJu: geJu ? {
+      primary: geJu.primary,
+      confidence: geJu.confidence,
+      basis: geJu.basis,
+    } : null,
+    wangShuai: wangShuai ? {
+      verdict: wangShuai.verdict,
+      score: wangShuai.score,
+      confidence: wangShuai.confidence,
+    } : null,
+    tiaoHou,
+    dayunStart: skillBazi.dayunStart,
+    dayun: (skillBazi.dayun || []).slice(0, 4),
     spousePalace: {
       branch: dayBranch || "未知",
       plain: dayBranch ? `日支${dayBranch}作为关系与长期相处的观察位，重点看稳定回应、边界和生活节奏。` : "出生时辰不完整时，关系宫位只能做保守参考。",
     },
     elementBalance: {
-      strongest: strongest?.element,
+      strongest: strongestStat,
       weakest: weakest?.element,
-      plain: `${strongest?.element || "强项"}是当前较容易调用的能力，${weakest?.element || "短板"}是需要用现实习惯补足的部分。`,
+      missing: missingStat,
+      plain: `${strongestStat || strongest?.element || "强项"}是当前较容易调用的能力，${weakest?.element || "短板"}是需要用现实习惯补足的部分${missingStat ? `；原局缺${missingStat}，对应能力要靠现实习惯补。` : "。"}`,
     },
-    userQuestionAnchor: `围绕“${user?.question || "当前问题"}”，先看日主承压方式，再看资源、关系和行动节奏。`,
+    userQuestionAnchor: `围绕“${user?.question || "当前问题"}”，先看${geJu?.primary || "格局"}、日主${wangShuai?.verdict || "强弱"}、月支${monthBranch || "月令"}和时柱${hourBranch || "时柱"}，再落到资源、关系和行动节奏。`,
   };
 }
 
@@ -218,6 +247,28 @@ function buildMeihuaLayer(ctx) {
 }
 
 function buildZiweiLayer(ctx) {
+  const skillZiwei = ctx.baziZiwei?.ziwei;
+  if (skillZiwei?.lifePalace) {
+    const life = skillZiwei.lifePalace;
+    const body = skillZiwei.bodyPalace || {};
+    const focus = skillZiwei.focusPalace || life;
+    const current = skillZiwei.currentDaXian || {};
+    const starText = (palace) => (palace?.mainStars || []).join("·") || "无主星";
+    return {
+      method: "紫微斗数十二宫层",
+      calculationPolicy: "紫微命宫、身宫、十二宫、生年四化与大限来自 bazi-ziwei skill 的 Yiqi 紫微算法层。",
+      lifePalaceHint: `${life.name}${life.branch ? `[${life.branch}]` : ""}`,
+      bodyPalaceHint: body.name ? `${body.name}${body.branch ? `[${body.branch}]` : ""}` : "",
+      focusPalaceHint: `${focus.name}${focus.branch ? `[${focus.branch}]` : ""}`,
+      lifePalace: life,
+      bodyPalace: body,
+      focusPalace: focus,
+      currentDaXian: current,
+      fourTransformations: skillZiwei.fourTransformations || [],
+      plain: `命宫${life.name || "命宫"}主星${starText(life)}，身宫${body.name || "身宫"}主星${starText(body)}；本题重点看${focus.name || "关注宫"}，主星${starText(focus)}。${(skillZiwei.fourTransformations || []).length ? `生年四化为${skillZiwei.fourTransformations.join("、")}，用来观察机会、主导权、名声与卡点。` : "生年四化为空时不做强断。"}`,
+    };
+  }
+
   const birth = ctx.birth || {};
   const hourIndex = Math.max(0, Math.floor(Number(birth.hour || 0) / 2));
   const palaceIndex = mod((Number(birth.month || 1) - 1) - hourIndex, 12);
@@ -312,10 +363,11 @@ function buildTarotLayer(ctx) {
 function buildCrossChecks(ctx, layers) {
   const checks = [
     `八字看底盘：${layers.bazi.elementBalance.plain}`,
+    layers.ziwei?.plain ? `紫微看结构：${layers.ziwei.plain}` : "",
     `六爻/梅花看事件：${layers.liuyao.lineTheme || "变化节点"}和体用关系一起看，避免只问单一吉凶。`,
     `奇门看行动：${layers.qimen.door}与${layers.qimen.palace}提示先处理“怎么做”和“谁是关键人”。`,
     `心理层落地：${ctx.psychology?.coreNeed || "真实需要"}要通过现实证据验证，不用焦虑替代行动。`,
-  ];
+  ].filter(Boolean);
   if (layers.yinyuan.active) checks.push(`姻缘层补充：${layers.yinyuan.plain}`);
   return checks;
 }
@@ -335,10 +387,10 @@ function buildMysticSystems(context) {
     tarot: buildTarotLayer(ctx),
   };
   return {
-    version: "mystic-systems-v1",
-    licenseNote: "自研规则层：参考公开项目的工程组织方式，未复制第三方代码或长文本。",
+    version: context.baziZiwei?.source ? "mystic-systems-v2+bazi-ziwei" : "mystic-systems-v1",
+    licenseNote: context.baziZiwei?.license || "自研规则层：参考公开项目的工程组织方式，未复制第三方代码或长文本。",
     integrationPolicy: [
-      "排盘与起卦优先由确定性规则生成结构化数据，模型只负责解释与对话。",
+      context.baziZiwei?.source ? "八字与紫微主盘由 bazi-ziwei skill 算法层生成，模型只负责解释与对话。" : "排盘与起卦优先由确定性规则生成结构化数据，模型只负责解释与对话。",
       "术数结果必须翻译成白话，不用专业词堆砌制造权威感。",
       "感情、金钱、健康、法律等问题只给娱乐参考和现实行动建议，不做决定性断言。",
       "多术数交叉验证时，只取一致方向；互相冲突时提示用户用现实证据复核。",
@@ -348,8 +400,8 @@ function buildMysticSystems(context) {
     chatGuidance: [
       "追问时先直接回答，再引用 1-2 个最相关术数层，不要把所有层都倾倒给用户。",
       "每个术语后面都要附一句白话解释。",
-      "如果用户问感情，优先使用姻缘层、日支/配偶宫、六爻用神和心理边界。",
-      "如果用户问事业/财运，优先使用八字十神、奇门门星宫、五行补足和现实验证步骤。",
+      "如果用户问感情，优先使用姻缘层、日支/配偶宫、紫微夫妻宫、六爻用神和心理边界。",
+      "如果用户问事业/财运，优先使用八字格局/十神、紫微官禄/财帛宫、奇门门星宫、五行补足和现实验证步骤。",
     ],
   };
 }

@@ -207,7 +207,7 @@
 
                   <label>
                     <span>出生时间</span>
-                    <input id="birthTime" name="birthTime" type="time" />
+                    <input id="birthTime" name="birthTime" type="time" required />
                   </label>
 
                   <label>
@@ -236,12 +236,11 @@
                   </label>
 
                   <label>
-                    <span>性别 / 身份</span>
-                    <select id="gender" name="gender">
-                      <option value="">不填写</option>
+                    <span>排盘性别</span>
+                    <select id="gender" name="gender" required>
+                      <option value="" disabled selected>请选择</option>
                       <option value="男">男</option>
                       <option value="女">女</option>
-                      <option value="其他">其他</option>
                     </select>
                   </label>
 

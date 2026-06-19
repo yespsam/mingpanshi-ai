@@ -4,6 +4,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { Solar } = require("lunar-javascript");
 const { buildMysticSystems } = require("./mystic-systems");
+const { buildBaziZiweiProfile } = require("./bazi-ziwei-adapter");
 
 const ROOT_DIR = typeof __dirname === "string" ? __dirname : ".";
 const PUBLIC_DIR = path.join(ROOT_DIR, "public");
@@ -185,6 +186,7 @@ const SYSTEM_PROMPT = [
   "可以使用心理咨询式倾听、情绪识别、认知-情绪-行为链路、边界感和价值澄清，但不能自称心理治疗，不能诊断疾病。",
   "不要提供医疗、法律、投资等专业结论；涉及钱、健康、重大关系时提醒用户自行判断，严重危机应建议寻求线下专业帮助或紧急支持。",
   "输出必须是合法 JSON，不要使用 Markdown 代码块，不要解释技术实现。",
+  "如果资料包包含 baziZiwei，八字与紫微必须以其中的算法结果为准；不得自行重排四柱、命宫、大限或四化。",
   "报告需要比普通娱乐文案更具体：必须结合四柱、五行强弱、八卦六爻、变爻、星术参照、流年、用户问题和心理动力，给出分层判断和可执行建议。",
   "如果资料包包含 mysticSystems，必须把八字、六爻/梅花、奇门/紫微、姻缘、风水或塔罗中最相关的 2-4 个体系做交叉验证；不要把所有术语堆给用户，要翻译成白话。",
   "必须围绕用户原始提问展开，不要只套模板；每个结论都要有命盘依据、心理解释和现实行动三层。",
@@ -220,6 +222,7 @@ const REPORT_ENHANCEMENT_PROMPT = [
   "术语必须翻译成人话：例如“火旺”要解释成行动热度、表达欲或急躁感；“金弱”要解释成规则、边界、复盘或判断力需要补。",
   "必须识别用户问题类型，并围绕用户原话重写重点判断；不要只做通用摘要。",
   "增强内容必须点名具体命盘数据，例如日柱、月柱、时柱、日主、十神、五行百分比、本卦变卦、动爻、流年主题或 mysticSystems 里的相关层。",
+  "如果资料包包含 baziZiwei，必须引用其格局、旺衰、调候、命宫、身宫、关注宫或生年四化中的至少 2 项。",
   "围绕用户问题、命盘总览、五行、卦象、多术数交叉验证、心理动力和行动建议生成。",
   "不要恐吓用户，不做确定性命运断言，不提供医疗、法律、投资结论。",
 ].join("\n");
@@ -936,7 +939,7 @@ function formatOffset(minutes) {
 
 function buildTrueSolarCalibration(input, birth, parsedHour) {
   const place = resolveBirthPlace(input.birthPlace || input.birthCity || input.location || "");
-  const requested = parseBooleanFlag(input.useTrueSolarTime, Boolean(place.longitude && parsedHour));
+  const requested = parseBooleanFlag(input.useTrueSolarTime, false);
   const baseHour = parsedHour ? (parsedHour.hour ?? branchCenterHour(parsedHour.branchIndex)) : null;
   const baseMinute = parsedHour ? parsedHour.minute : 0;
   const clockTime = parsedHour ? formatDateTimeParts(birth.year, birth.month, birth.day, baseHour, baseMinute) : "";
@@ -1255,6 +1258,31 @@ function buildDomainScores(seed, strongest, weakest, focus) {
   });
 }
 
+function mergeBaziZiweiPillars(pillars, baziZiwei = {}) {
+  const skill = baziZiwei.bazi || {};
+  if (!skill.pillars) return pillars;
+
+  const merged = {
+    ...pillars,
+    engine: "bazi-ziwei-skill / Yiqi core + enrichBazi",
+  };
+
+  for (const key of ["year", "month", "day", "hour"]) {
+    const name = skill.pillars[key];
+    const local = pillarFromGanzhi(name, {
+      naYin: skill.naYin?.[key] || "",
+      shiShenGan: skill.tenGods?.[key] || "",
+      shiShenZhi: (skill.cangGan?.[key] || []).map((item) => `${item.gan}${item.shiShen ? `(${item.shiShen})` : ""}`),
+      zhangSheng: skill.zhangSheng?.[key] || "",
+      source: "bazi-ziwei-skill",
+    });
+    if (local) merged[key] = local;
+  }
+
+  merged.pillarYear = merged.year?.name;
+  return merged;
+}
+
 function inferFocus(focus, question) {
   if (focus && focus !== "auto") return focus;
   const text = question || "";
@@ -1331,8 +1359,15 @@ function buildFortuneProfile(input) {
   const focus = inferFocus(String(input.focus || "auto"), question);
   const birth = parseBirthDate(input.birthDate);
   const parsedHour = parseHour(input.birthTime);
+  if (!parsedHour) {
+    const error = new Error("请填写有效出生时间。八字与紫微排盘必须有时辰，不能默认子时。");
+    error.statusCode = 400;
+    throw error;
+  }
   const trueSolarTime = buildTrueSolarCalibration(input, birth, parsedHour);
-  const pillars = buildPillars(birth, parsedHour, trueSolarTime);
+  const baziZiwei = buildBaziZiweiProfile({ birth, parsedHour, gender, trueSolarTime, focus });
+  const legacyPillars = buildPillars(birth, parsedHour, trueSolarTime);
+  const pillars = mergeBaziZiweiPillars(legacyPillars, baziZiwei);
   const elements = buildElementWeights(pillars);
   const seed = hashSeed({
     name,
@@ -1383,7 +1418,8 @@ function buildFortuneProfile(input) {
     focus,
     focusLabel,
     question,
-    birth: { ...birth, hour: Number(parsedHour || 0) },
+    baziZiwei,
+    birth: { ...birth, hour: baziZiwei.birthInfo.hour, minute: baziZiwei.birthInfo.minute },
     trueSolarTime,
   });
 
@@ -1391,8 +1427,8 @@ function buildFortuneProfile(input) {
     user: userProfile,
     meta: {
       generatedAt: new Date().toISOString(),
-      engine: "命盘师 AI 命盘资料包 v0.6 / lunar-javascript + true solar time",
-      accuracyNote: "四柱由 lunar-javascript 按公历时间与节气计算；如填写出生城市并启用真太阳时，会按出生地经度与均时差修正时间。当前版本未接入夏令时、海拔与人工校盘。",
+      engine: "命盘师 AI 命盘资料包 v0.7 / bazi-ziwei skill + Yiqi core + enrichBazi",
+      accuracyNote: "八字与紫微主盘由 bazi-ziwei skill 的 Yiqi core + enrichBazi 算法层生成，模型只做解释；默认按用户填写的公历钟表时间排盘，不自动做出生地真太阳时校正。",
       calendarEngine: pillars.engine,
       solarText: pillars.solarText,
       lunarText: pillars.lunarText,
@@ -1400,6 +1436,11 @@ function buildFortuneProfile(input) {
       prevJieQi: pillars.prevJieQi,
       nextJieQi: pillars.nextJieQi,
       trueSolarTime: pillars.trueSolarTime,
+      baziZiwei: {
+        source: baziZiwei.source,
+        version: baziZiwei.version,
+        calculationPolicy: baziZiwei.calculationPolicy,
+      },
     },
     western: {
       sign,
@@ -1424,6 +1465,7 @@ function buildFortuneProfile(input) {
     psychology,
     stellar,
     mysticSystems,
+    baziZiwei,
     trigrams: TRIGRAMS,
     annualFlow,
     domains,
@@ -1466,6 +1508,11 @@ function compactMysticSystemsForPrompt(mysticSystems = {}) {
       spousePalace: layers.bazi?.spousePalace,
       elementBalance: layers.bazi?.elementBalance,
       tenGods: layers.bazi?.tenGods,
+      geJu: layers.bazi?.geJu,
+      wangShuai: layers.bazi?.wangShuai,
+      tiaoHou: layers.bazi?.tiaoHou,
+      dayunStart: layers.bazi?.dayunStart,
+      dayun: layers.bazi?.dayun,
     },
     liuyao: layers.liuyao ? {
       yongshen: layers.liuyao.yongshen,
@@ -1481,7 +1528,9 @@ function compactMysticSystemsForPrompt(mysticSystems = {}) {
     } : undefined,
     ziwei: layers.ziwei ? {
       lifePalaceHint: layers.ziwei.lifePalaceHint,
+      bodyPalaceHint: layers.ziwei.bodyPalaceHint,
       focusPalaceHint: layers.ziwei.focusPalaceHint,
+      currentDaXian: layers.ziwei.currentDaXian,
       fourTransformations: layers.ziwei.fourTransformations,
       plain: layers.ziwei.plain,
     } : undefined,
@@ -1507,6 +1556,43 @@ function compactMysticSystemsForPrompt(mysticSystems = {}) {
   };
 }
 
+function compactBaziZiweiForPrompt(baziZiwei = {}) {
+  if (!baziZiwei.source) return null;
+  const en = baziZiwei.bazi?.enrichment || {};
+  return {
+    source: baziZiwei.source,
+    calculationPolicy: baziZiwei.calculationPolicy,
+    chartText: baziZiwei.chartText,
+    bazi: {
+      pillars: baziZiwei.bazi?.pillars,
+      dayMaster: baziZiwei.bazi?.dayMaster,
+      tenGods: baziZiwei.bazi?.tenGods,
+      dayunStart: baziZiwei.bazi?.dayunStart,
+      dayun: (baziZiwei.bazi?.dayun || []).slice(0, 6),
+      geJu: en.格局,
+      wangShuai: en.旺衰 ? {
+        verdict: en.旺衰.verdict,
+        score: en.旺衰.score,
+        confidence: en.旺衰.confidence,
+      } : null,
+      tiaoHou: en.调候用神,
+      wuXingStats: en.五行统计,
+      ganRelations: en.天干关系,
+      zhiRelations: en.地支关系,
+      pillarJudgements: en.整柱,
+    },
+    ziwei: {
+      yinYang: baziZiwei.ziwei?.yinYang,
+      wuXingJu: baziZiwei.ziwei?.wuXingJu,
+      lifePalace: baziZiwei.ziwei?.lifePalace,
+      bodyPalace: baziZiwei.ziwei?.bodyPalace,
+      focusPalace: baziZiwei.ziwei?.focusPalace,
+      currentDaXian: baziZiwei.ziwei?.currentDaXian,
+      fourTransformations: baziZiwei.ziwei?.fourTransformations,
+    },
+  };
+}
+
 function compactProfileForPrompt(profile) {
   return {
     user: profile.user,
@@ -1526,6 +1612,7 @@ function compactProfileForPrompt(profile) {
     psychology: profile.psychology,
     stellar: profile.stellar,
     mysticSystems: compactMysticSystemsForPrompt(profile.mysticSystems),
+    baziZiwei: compactBaziZiweiForPrompt(profile.baziZiwei),
     annualFlow: profile.annualFlow,
     domains: profile.domains,
     lucky: profile.lucky,
@@ -1569,10 +1656,10 @@ function compactFusionProfileForPrompt(profile) {
     },
     mysticLayers: [
       layers.bazi?.userQuestionAnchor ? `八字：${layers.bazi.userQuestionAnchor}` : "",
+      layers.ziwei?.plain ? `紫微：${layers.ziwei.plain}` : "",
       layers.liuyao?.plain ? `六爻：${layers.liuyao.plain}` : "",
       layers.meihua?.plain ? `梅花：${layers.meihua.plain}` : "",
       layers.qimen?.plain ? `奇门：${layers.qimen.plain}` : "",
-      layers.ziwei?.plain ? `紫微：${layers.ziwei.plain}` : "",
       layers.yinyuan?.active && layers.yinyuan?.plain ? `姻缘：${layers.yinyuan.plain}` : "",
       layers.tarot?.plain ? `塔罗：${layers.tarot.plain}` : "",
     ].filter(Boolean).slice(0, 4),
@@ -1583,6 +1670,7 @@ function compactFusionProfileForPrompt(profile) {
       theme: firstFlow.theme,
       score: firstFlow.score,
     } : null,
+    baziZiwei: compactBaziZiweiForPrompt(profile.baziZiwei),
   };
 }
 
@@ -1622,6 +1710,7 @@ function buildPrompt(profile) {
     "不要把“白话总结”当标题卖点；要把所有内容写得像普通人能理解的解释。",
     "写法固定：先给结论，再说依据，再说行动。术语出现后立刻解释它代表的现实含义。",
     "如果 profile.meta.trueSolarTime.applied 为 true，必须在命盘总览或重点问题里简短说明排盘采用了真太阳时校正，并引用校正后的时间。",
+    "如果 profile.baziZiwei 存在，八字与紫微信息必须优先引用 profile.baziZiwei.chartText、格局/旺衰/调候、生年四化、命宫/身宫/关注宫；不要自行重新排盘。",
     "如果 profile.mysticSystems 存在，必须输出“多术数交叉验证”章节；只选最相关的体系，不要把所有层逐条罗列。",
     "心理内容只做自我反思、情绪识别、边界澄清和行动建议，不做诊断，不替代心理治疗或线下专业支持。",
     "重点问题必须直接回应用户原话，每个判断都尽量写出：命盘依据、心理动力、现实检验方式。",
@@ -1748,6 +1837,7 @@ function buildChatPrompt({ profile, report, history, message }) {
       psychology: profile?.psychology,
       stellar: profile?.stellar,
       mysticSystems: profile?.mysticSystems,
+      baziZiwei: compactBaziZiweiForPrompt(profile?.baziZiwei),
       annualFlow: profile?.annualFlow,
       reportSummary: report?.summary,
       reportSections: report?.sections,
@@ -1765,6 +1855,7 @@ function buildChatPrompt({ profile, report, history, message }) {
       "请先按 personalizationAnchors.intent 判断问题类型，并围绕该类型切换分析重心。",
       "请用白话回答，像在认真给朋友解释，不要堆玄学术语；必须先给倾向性结论，再解释依据。",
       "不要固定输出【直接结论】【为什么这么看】等模板标题；可用自然段，也可用 2-4 个短标题，但标题要贴合本次问题。",
+      "八字和紫微依据优先使用 profile.baziZiwei 的格局、旺衰、调候、命宫、身宫、关注宫和四化；不要凭模型记忆重排四柱或紫微。",
       "回答中必须明确引用至少 3 个具体资料点，例如：日柱/日主、月柱或时柱十神、五行最强最弱、本卦变卦/动爻、流年主题、mysticSystems 的相关层。",
       "不能只说“你的命盘显示”“适合小步验证”。要说清楚：这个人的哪一柱、哪一类五行、哪一个卦象变化，为什么会落到这个问题上。",
       "如果用户问“该不该/能不能/会不会/什么时候”，要给出偏向判断和前置条件，不要只说看情况。",
@@ -1980,6 +2071,7 @@ function profileAnchors(profile = {}, message = "") {
     stellarSignal: stellar.sign ? `${stellar.sign}：优势${stellar.gift || "未定"}，压力影子${stellar.shadow || "未定"}。` : "",
     relevantMysticLayers: [
       layers.bazi?.userQuestionAnchor ? `八字：${layers.bazi.userQuestionAnchor}` : "",
+      layers.ziwei?.plain ? `紫微：${layers.ziwei.plain}` : "",
       layers.liuyao?.plain ? `六爻：${layers.liuyao.plain}` : "",
       layers.meihua?.plain ? `梅花：${layers.meihua.plain}` : "",
       layers.qimen?.plain ? `奇门：${layers.qimen.plain}` : "",
@@ -2170,10 +2262,20 @@ function compactSectionTitle(title = "") {
 
 function structuredReportAnchor(profile = {}) {
   const { user, pillars, strongest, weakest, primary, changed, sixYao, firstFlow, trueSolarTime } = reportContext(profile);
+  const baziZiwei = profile.baziZiwei || {};
+  const geJu = baziZiwei.bazi?.enrichment?.格局;
+  const wangShuai = baziZiwei.bazi?.enrichment?.旺衰;
+  const lifePalace = baziZiwei.ziwei?.lifePalace;
+  const focusPalace = baziZiwei.ziwei?.focusPalace;
   return [
     user.question ? `用户问题：${user.question}` : "",
     `四柱：年${pillars.year?.name || "--"}、月${pillars.month?.name || "--"}、日${pillars.day?.name || "--"}、时${pillars.hour?.name || "待填写"}`,
     `日主：${pillars.dayMaster || pillars.day?.stem || "--"}`,
+    geJu?.primary ? `八字格局：${geJu.primary}（置信度${geJu.confidence || "--"}）` : "",
+    wangShuai?.verdict ? `日主旺衰：${wangShuai.verdict}（置信度${wangShuai.confidence || "--"}）` : "",
+    lifePalace?.name ? `紫微命宫：${lifePalace.name}${lifePalace.branch ? `[${lifePalace.branch}]` : ""}，主星${(lifePalace.mainStars || []).join("、") || "无主星"}` : "",
+    focusPalace?.name ? `关注宫位：${focusPalace.name}${focusPalace.branch ? `[${focusPalace.branch}]` : ""}，主星${(focusPalace.mainStars || []).join("、") || "无主星"}` : "",
+    baziZiwei.ziwei?.fourTransformations?.length ? `生年四化：${baziZiwei.ziwei.fourTransformations.join("、")}` : "",
     `五行：${(profile.elements || []).map((item) => `${item.element}${item.percent}%`).join(" / ") || "--"}`,
     `强弱：${strongest.element || "--"}偏强，${weakest.element || "--"}需补`,
     primary.name || changed.name ? `卦象：${primary.name || "--"} -> ${changed.name || "--"}${sixYao.lineTheme ? `，动点${sixYao.lineTheme}` : ""}` : "",
@@ -2407,13 +2509,14 @@ function compactKimiCoreForPrompt(profile) {
     } : null,
     systems: [
       layers.bazi?.userQuestionAnchor ? `八字：${layers.bazi.userQuestionAnchor}` : "",
+      layers.ziwei?.plain ? `紫微：${layers.ziwei.plain}` : "",
       layers.liuyao?.plain ? `六爻：${layers.liuyao.plain}` : "",
       layers.meihua?.plain ? `梅花：${layers.meihua.plain}` : "",
       layers.qimen?.plain ? `奇门：${layers.qimen.plain}` : "",
-      layers.ziwei?.plain ? `紫微：${layers.ziwei.plain}` : "",
       layers.yinyuan?.active && layers.yinyuan?.plain ? `姻缘：${layers.yinyuan.plain}` : "",
       layers.tarot?.plain ? `塔罗：${layers.tarot.plain}` : "",
     ].filter(Boolean).slice(0, 4),
+    baziZiwei: compactBaziZiweiForPrompt(profile.baziZiwei),
   };
 }
 
@@ -2473,6 +2576,7 @@ function buildReportEnhancementPrompt({ profile, report }) {
     "总字数控制在 650-850 个中文字符。不要写长篇总报告，不要套固定开场和固定结尾。",
     "第一优先级是回答用户原问题；同一生日换问题时，结论、依据、行动建议都必须随问题改变。",
     "每个结论至少挂 1 个具体依据：四柱/日主/月柱/时柱、五行强弱、本卦变卦/动爻、流年主题或相关术数层。",
+    "八字与紫微必须优先使用资料包中的 baziZiwei：格局/旺衰/调候来自 enrichBazi，命宫/身宫/关注宫/生年四化来自 Yiqi 紫微，不要自行重排。",
     "术语出现后立刻翻译成人话；建议要具体到谈判、沟通、预算、时间窗口或观察指标。",
     "不要恐吓，不做确定性命运断言。涉及钱、健康、重大关系时提醒现实复核。",
     "",

@@ -2,8 +2,14 @@
   publish = "public"
   functions = "netlify/functions"
 
+[functions]
+  included_files = [
+    "vendor/bazi-ziwei-skill/calculator/dist/**",
+    "vendor/bazi-ziwei-skill/LICENSE",
+    "vendor/bazi-ziwei-skill/NOTICE"
+  ]
+
 [[headers]]
   for = "/api/*"
   [headers.values]
     Cache-Control = "no-store"
-
